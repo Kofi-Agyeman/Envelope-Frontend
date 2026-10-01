@@ -25,8 +25,10 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
+- Use **Expo Router** for all navigation. Routes live in `app/` at the project root — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `app/`. A file inside `app/` may only default-export a React component; shared components (e.g. `components/Field.tsx`) belong outside the route directory.
 - Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
+- Expo Router bundles React Navigation internally; do not `@react-navigation/*` import it. Use `expo-router` (`DarkTheme`, `ThemeProvider`, `Stack`) and `expo-router/js-tabs` (`Tabs`, `BottomTabBarProps`). `Tabs` re-exported from `expo-router` itself is deprecated.
+- `StyleSheet.absoluteFillObject` was removed in RN 0.86. Use `StyleSheet.absoluteFill` or explicit `position: 'absolute'` + edges.
 - Docs: https://docs.expo.dev/router/introduction.md
 
 ## Building with EAS

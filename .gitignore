@@ -31,7 +31,14 @@ yarn-error.*
 *.pem
 
 # local env files
+# Never commit .env — it is the only file that could hold a real secret.
+.env
 .env*.local
+!.env.example
+
+# local build/verification output
+.expo-verify/
+export-log.txt
 
 # typescript
 *.tsbuildinfo
