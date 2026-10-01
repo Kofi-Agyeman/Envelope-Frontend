@@ -46,7 +46,7 @@ export const mockService = {
       amount: payload.amount,
       currency: payload.currency ?? 'GHS',
       status: 'waiting',
-      shareUrl: `https://pingpay.app/e/${code}`,
+      shareUrl: `https://envelope.app/e/${code}`,
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + 72 * 3_600_000).toISOString(),
     };

@@ -1,4 +1,9 @@
-import { DarkTheme, ThemeProvider } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from 'expo-router';
+import { Redirect, useSegments } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import React from 'react';
@@ -14,26 +19,13 @@ import {
   Inter_800ExtraBold,
   Inter_900Black,
 } from '@expo-google-fonts/inter';
-import { colors } from '@/constants/colors';
+import { ThemeProvider, useTheme } from '@/store/theme';
 import { AuthProvider, useAuth } from '@/store/auth';
 import { DataProvider } from '@/store/data';
 import { setHapticsEnabled } from '@/utils/haptics';
 
-const navigationTheme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    background: colors.background,
-    card: colors.background,
-    text: colors.text,
-    border: colors.border,
-    primary: colors.primary,
-  },
-};
-
-const screenOptions = {
+const animations = {
   headerShown: false,
-  contentStyle: { backgroundColor: colors.background },
   animation: 'slide_from_right',
 } as const;
 
@@ -44,11 +36,12 @@ const screenOptions = {
  */
 function AppNavigator() {
   const { preferences } = useAuth();
+  const { colors } = useTheme();
 
   return (
     <Stack
       initialRouteName={preferences.hasSeenOnboarding ? '(tabs)' : 'onboarding'}
-      screenOptions={screenOptions}
+      screenOptions={{ ...animations, contentStyle: { backgroundColor: colors.background } }}
     >
       <Stack.Screen
         name="onboarding"
@@ -68,8 +61,16 @@ function AppNavigator() {
 }
 
 function AuthNavigator() {
+  const { colors } = useTheme();
+
   return (
-    <Stack screenOptions={{ ...screenOptions, animation: 'fade' }}>
+    <Stack
+      screenOptions={{
+        ...animations,
+        animation: 'fade',
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
       <Stack.Screen name="(auth)" />
     </Stack>
   );
@@ -77,18 +78,69 @@ function AuthNavigator() {
 
 function RootNavigator() {
   const { status, preferences } = useAuth();
+  const { colors, scheme } = useTheme();
+  const segments = useSegments();
+  const isDark = scheme === 'dark';
 
   React.useEffect(() => {
     setHapticsEnabled(preferences.hapticFeedback);
   }, [preferences.hapticFeedback]);
 
-  if (status === 'loading') return null;
+  const navigationTheme = React.useMemo(() => {
+    const base = isDark ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        background: colors.background,
+        card: colors.background,
+        text: colors.text,
+        border: colors.border,
+        primary: colors.primary,
+      },
+    };
+  }, [isDark, colors]);
+
+  if (status === 'loading') {
+    return <View style={{ flex: 1, backgroundColor: colors.background }} />;
+  }
+
+  // Signing in must actively move the URL, not just swap the tree below it.
+  // Both navigators render a <Stack> in the same position, so React reuses the
+  // existing one and the router stays parked on /login, which the signed-in
+  // stack does not own. Redirecting first is what makes the transition
+  // immediate instead of requiring an app restart.
+  if (status === 'signed-in' && segments[0] === '(auth)') {
+    return (
+      <Redirect
+        href={preferences.hasSeenOnboarding ? '/(tabs)' : '/onboarding'}
+      />
+    );
+  }
+
+  // The mirror case: a session that has ended must not leave the user sitting
+  // on a protected screen. Sign-out navigates explicitly, so this only covers
+  // a session that expires mid-use.
+  if (status === 'signed-out' && segments[0] !== '(auth)') {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  // A key tied to the auth state forces React to discard the outgoing
+  // navigator and build the incoming one. Without it the two <Stack>s are
+  // reconciled as the same component and the stale route tree survives.
+  const navigatorKey = status;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <StatusBar style="light" />
-      {status === 'signed-out' ? <AuthNavigator /> : <AppNavigator />}
-    </View>
+    <NavigationThemeProvider value={navigationTheme}>
+      <View style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar style={isDark ? 'light' : 'dark'} />
+        {status === 'signed-out' ? (
+          <AuthNavigator key={navigatorKey} />
+        ) : (
+          <AppNavigator key={navigatorKey} />
+        )}
+      </View>
+    </NavigationThemeProvider>
   );
 }
 
@@ -107,7 +159,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <ThemeProvider value={navigationTheme}>
+        <ThemeProvider>
           <AuthProvider>
             <DataProvider>
               <RootNavigator />

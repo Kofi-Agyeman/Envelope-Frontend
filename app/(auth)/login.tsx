@@ -8,22 +8,27 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { Field, PasswordToggle } from '@/components/Field';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
 import { useAuth } from '@/store/auth';
 import { demoCredentials } from '@/services/auth';
+import { USE_MOCKS } from '@/constants/config';
 
 export default function LoginScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
-  const { signIn } = useAuth();
+  const { signIn, preferences } = useAuth();
+  const router = useRouter();
 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -40,8 +45,12 @@ export default function LoginScreen() {
     try {
       await signIn({ phone: phone.trim(), password });
       haptics.success();
-      // The root navigator swaps to the signed-in tree on its own once
-      // `status` flips, choosing onboarding or the tabs as its initial route.
+      // Move the router explicitly. The root navigator also redirects, but
+      // leaving an authenticated screen still mounted for a frame is what made
+      // the transition feel like it required a restart.
+      router.replace(
+        preferences.hasSeenOnboarding ? '/(tabs)' : '/onboarding',
+      );
     } catch (e) {
       haptics.error();
       setError(
@@ -52,7 +61,7 @@ export default function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  }, [canSubmit, loading, password, phone, signIn]);
+  }, [canSubmit, loading, password, phone, preferences.hasSeenOnboarding, router, signIn]);
 
   const useDemo = useCallback(() => {
     setPhone(demoCredentials.phone);
@@ -74,7 +83,7 @@ export default function LoginScreen() {
         showsVerticalScrollIndicator={false}
       >
                 <Animated.View entering={FadeInDown.duration(420)}>
-          <Text style={styles.wordmark}>PINGPAY</Text>
+          <Text style={styles.wordmark}>ENVELOPE</Text>
         </Animated.View>
 
         <Animated.View
@@ -117,7 +126,7 @@ export default function LoginScreen() {
 
           {error ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+              <Icon name="alert" size={16} color={colors.error} />
               <Text style={styles.errorText}>{error}</Text>
             </Animated.View>
           ) : null}
@@ -129,18 +138,20 @@ export default function LoginScreen() {
             loadingLabel="Signing in…"
             disabled={!canSubmit}
             style={styles.submit}
-            accessibilityHint="Signs in to your PingPay account"
+            accessibilityHint="Signs in to your Envelope account"
           />
 
-          <Pressable
-            onPress={useDemo}
-            accessibilityRole="button"
-            style={styles.demoButton}
-          >
-            <Text style={styles.demoText}>
-              Use demo account · {demoCredentials.masked}
-            </Text>
-          </Pressable>
+          {USE_MOCKS ? (
+            <Pressable
+              onPress={useDemo}
+              accessibilityRole="button"
+              style={styles.demoButton}
+            >
+              <Text style={styles.demoText}>
+                Use demo account · {demoCredentials.masked}
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={() => setError('Password reset will be available once your account is linked to MTN MoMo.')}
@@ -152,7 +163,7 @@ export default function LoginScreen() {
         </Animated.View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>New to PingPay?</Text>
+          <Text style={styles.footerText}>New to Envelope?</Text>
           <Link href="/(auth)/register" asChild>
             <Pressable accessibilityRole="link" hitSlop={8}>
               <Text style={styles.footerLink}>Create an account</Text>
@@ -164,7 +175,8 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

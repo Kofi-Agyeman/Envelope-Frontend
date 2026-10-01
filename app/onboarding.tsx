@@ -16,7 +16,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
@@ -33,7 +34,7 @@ type Slide = {
 
 const SLIDES: Slide[] = [
   {
-    eyebrow: 'MEET PINGPAY',
+    eyebrow: 'MEET ENVELOPE',
     title: 'Send money without asking for a MoMo number first.',
     body: 'No number, no awkward request. You decide how much, we handle the rest.',
     state: 'idle',
@@ -56,6 +57,7 @@ const SLIDES: Slide[] = [
 ];
 
 export default function OnboardingScreen() {
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { completeOnboarding } = useAuth();
@@ -154,7 +156,8 @@ export default function OnboardingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

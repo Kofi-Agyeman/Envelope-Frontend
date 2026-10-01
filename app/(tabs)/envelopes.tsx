@@ -3,10 +3,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { EnvelopeCard } from '@/components/EnvelopeCard';
 import { SkeletonCard } from '@/components/Skeleton';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { formatMoney } from '@/utils/format';
@@ -29,6 +30,8 @@ const ACTIVE_STATUSES: Envelope['status'][] = [
 ];
 
 export default function EnvelopesScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { envelopes, loadingEnvelopes } = useData();
@@ -105,7 +108,7 @@ export default function EnvelopesScreen() {
           </>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="mail-outline" size={24} color={colors.textMuted} />
+            <Icon name="envelope" size={24} color={colors.textMuted} />
             <Text style={styles.emptyText}>
               {filter === 'all'
                 ? 'You have not created any envelopes yet.'
@@ -134,7 +137,8 @@ export default function EnvelopesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -188,7 +192,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.semibold,
     fontSize: 13,
     lineHeight: 18,
-    color: '#141621',
+    color: colors.onPrimary,
   },
   list: {
     gap: spacing.md,

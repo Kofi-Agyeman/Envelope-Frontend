@@ -5,19 +5,22 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { haptics } from '@/utils/haptics';
 
 type Props = {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: IconName;
   label: string;
   onPress: () => void;
 };
 
 export function QuickAction({ icon, label, onPress }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const pressed = useSharedValue(0);
 
   useEffect(() => {
@@ -47,7 +50,7 @@ export function QuickAction({ icon, label, onPress }: Props) {
         style={styles.action}
       >
         <View style={styles.iconCircle}>
-          <Ionicons name={icon} size={18} color={colors.primary} />
+          <Icon name={icon} size={18} color={colors.primary} />
         </View>
         <Text style={styles.label} numberOfLines={1}>
           {label}
@@ -57,33 +60,34 @@ export function QuickAction({ icon, label, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  action: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md + 2,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryFaint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  label: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.text,
-    flexShrink: 1,
-  },
-});
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
+    action: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md + 2,
+      paddingHorizontal: spacing.lg,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    iconCircle: {
+      width: 32,
+      height: 32,
+      borderRadius: radius.md,
+      backgroundColor: colors.primaryFaint,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    label: {
+      ...type.caption,
+      fontFamily: fontFamily.semibold,
+      color: colors.text,
+      flexShrink: 1,
+    },
+  });
 
 export default QuickAction;

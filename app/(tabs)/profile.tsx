@@ -11,9 +11,10 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette, ThemeMode } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { maskPhone } from '@/utils/format';
@@ -22,10 +23,22 @@ import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 import type { UserPreferences } from '@/types';
 
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: IconName }[] = [
+  { value: 'light', label: 'Light', icon: 'sun' },
+  { value: 'dark', label: 'Dark', icon: 'moon' },
+  { value: 'system', label: 'Auto', icon: 'system' },
+];
+
+const APPEARANCE_ICON: Record<ThemeMode, IconName> = {
+  light: 'sun',
+  dark: 'moon',
+  system: 'system',
+};
+
 const SECTIONS: {
   title: string;
   rows: {
-    icon: keyof typeof Ionicons.glyphMap;
+    icon: IconName;
     label: string;
     value?: string;
     pref?: keyof UserPreferences;
@@ -34,36 +47,38 @@ const SECTIONS: {
   {
     title: 'Account',
     rows: [
-      { icon: 'person-outline', label: 'Personal information', value: 'Edit' },
-      { icon: 'wallet-outline', label: 'MTN MoMo wallet', value: '•••• 4567' },
-      { icon: 'lock-closed-outline', label: 'Password & security', value: '' },
+      { icon: 'profile', label: 'Personal information', value: 'Edit' },
+      { icon: 'wallet', label: 'MTN MoMo wallet', value: '•••• 4567' },
+      { icon: 'lock', label: 'Password & security', value: '' },
     ],
   },
   {
     title: 'Security',
     rows: [
-      { icon: 'finger-print-outline', label: 'Biometric authentication', pref: 'biometricsEnabled' },
+      { icon: 'fingerprint', label: 'Biometric authentication', pref: 'biometricsEnabled' },
     ],
   },
   {
     title: 'Preferences',
     rows: [
-      { icon: 'notifications-outline', label: 'Push notifications', pref: 'pushNotifications' },
-      { icon: 'eye-off-outline', label: 'Hide balance', pref: 'hideBalance' },
-      { icon: 'radio-button-on-outline', label: 'Haptic feedback', pref: 'hapticFeedback' },
-      { icon: 'cash-outline', label: 'Payment settings', value: '' },
+      { icon: 'bell', label: 'Push notifications', pref: 'pushNotifications' },
+      { icon: 'eyeOff', label: 'Hide balance', pref: 'hideBalance' },
+      { icon: 'haptics', label: 'Haptic feedback', pref: 'hapticFeedback' },
+      { icon: 'cash', label: 'Payment settings', value: '' },
     ],
   },
   {
     title: 'Support',
     rows: [
-      { icon: 'help-circle-outline', label: 'Help centre', value: '' },
-      { icon: 'document-text-outline', label: 'Terms & privacy', value: '' },
+      { icon: 'help', label: 'Help centre', value: '' },
+      { icon: 'document', label: 'Terms & privacy', value: '' },
     ],
   },
 ];
 
 export default function ProfileScreen() {
+  const { colors, mode, setMode } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { profile, preferences, setPreference, signOut } = useAuth();
@@ -139,7 +154,7 @@ export default function ProfileScreen() {
                 ]}
               >
                 <View style={styles.rowIcon}>
-                  <Ionicons name={row.icon} size={17} color={colors.textSecondary} />
+                  <Icon name={row.icon} size={17} color={colors.textSecondary} />
                 </View>
 
                 <Text style={styles.rowLabel}>{row.label}</Text>
@@ -151,9 +166,11 @@ export default function ProfileScreen() {
                       haptics.light();
                       setPreference(row.pref as keyof UserPreferences, value);
                     }}
-                    trackColor={{ false: 'rgba(255,255,255,0.12)', true: 'rgba(255,210,28,0.55)' }}
-                    thumbColor={preferences[row.pref] ? colors.primary : '#8B8F9C'}
-                    ios_backgroundColor="rgba(255,255,255,0.12)"
+                    trackColor={{ false: colors.borderStrong, true: colors.primaryMuted }}
+                    thumbColor={
+                      preferences[row.pref] ? colors.primary : colors.textMuted
+                    }
+                    ios_backgroundColor={colors.borderStrong}
                     accessibilityLabel={row.label}
                   />
                 ) : (
@@ -161,7 +178,7 @@ export default function ProfileScreen() {
                     {row.value ? (
                       <Text style={styles.rowValue}>{row.value}</Text>
                     ) : null}
-                    <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+                    <Icon name="chevronForward" size={15} color={colors.textMuted} />
                   </View>
                 )}
               </View>
@@ -170,6 +187,50 @@ export default function ProfileScreen() {
         </View>
       ))}
 
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Appearance</Text>
+        <View style={styles.group}>
+          <View style={styles.row}>
+            <View style={styles.rowIcon}>
+              <Icon name={APPEARANCE_ICON[mode]} size={17} color={colors.textSecondary} />
+            </View>
+            <Text style={styles.rowLabel}>Theme</Text>
+            <View style={styles.segment}>
+              {THEME_OPTIONS.map((option) => {
+                const selected = mode === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    onPress={() => {
+                      haptics.light();
+                      setMode(option.value);
+                    }}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                    accessibilityLabel={`${option.label} theme`}
+                    style={[styles.segmentItem, selected && styles.segmentItemActive]}
+                  >
+                    <Icon
+                      name={option.icon}
+                      size={14}
+                      color={selected ? colors.onPrimary : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.segmentLabel,
+                        selected && styles.segmentLabelActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </View>
+
       <PrimaryButton
         label="LOG OUT"
         variant="secondary"
@@ -177,12 +238,13 @@ export default function ProfileScreen() {
         style={styles.logout}
       />
 
-      <Text style={styles.version}>PingPay · Envelope · v1.0.0</Text>
+      <Text style={styles.version}>Envelope · v1.0.0</Text>
     </ScrollView>
   );
 }
 
 function Stat({ value, label }: { value: string; label: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
@@ -191,7 +253,8 @@ function Stat({ value, label }: { value: string; label: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
@@ -255,7 +318,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,210,28,0.16)',
+    backgroundColor: colors.primaryMuted,
   },
   mtnMarkText: {
     fontFamily: fontFamily.bold,
@@ -327,6 +390,36 @@ const styles = StyleSheet.create({
   rowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  segment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    padding: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  segmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.pill,
+  },
+  segmentItemActive: {
+    backgroundColor: colors.primary,
+  },
+  segmentLabel: {
+    fontFamily: fontFamily.semibold,
+    fontSize: 12,
+    letterSpacing: 0.2,
+    color: colors.textSecondary,
+  },
+  segmentLabelActive: {
+    color: colors.onPrimary,
   },
   rowIcon: {
     width: 30,

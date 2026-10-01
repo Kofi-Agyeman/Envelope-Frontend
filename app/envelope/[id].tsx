@@ -12,12 +12,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StatusBadge, statusDescription } from '@/components/StatusBadge';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import {
@@ -76,6 +77,8 @@ function envelopeState(envelope: Envelope) {
 }
 
 export default function EnvelopeDetailScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string }>();
@@ -99,7 +102,7 @@ export default function EnvelopeDetailScreen() {
   const handleShare = useCallback(async () => {
     if (!envelope) return;
     haptics.medium();
-    const message = `I've sent you a PingPay Envelope worth ${formatMoney(envelope.amount)}. Open this link to claim it:\n\n${envelope.shareUrl}`;
+    const message = `I've sent you an Envelope worth ${formatMoney(envelope.amount)}. Open this link to claim it:\n\n${envelope.shareUrl}`;
     try {
       await Share.share(
         Platform.OS === 'ios' ? { message, url: envelope.shareUrl } : { message },
@@ -145,7 +148,7 @@ export default function EnvelopeDetailScreen() {
             accessibilityLabel="Go back"
             style={styles.iconButton}
           >
-            <Ionicons name="chevron-back" size={20} color={colors.text} />
+            <Icon name="chevronBack" size={20} color={colors.text} />
           </Pressable>
           <Text style={styles.navTitle}>Envelope</Text>
           <View style={styles.iconButton} />
@@ -168,7 +171,7 @@ export default function EnvelopeDetailScreen() {
           </Text>
           {isLive ? (
             <View style={styles.countdownPill}>
-              <Ionicons name="time-outline" size={13} color={colors.primary} />
+              <Icon name="clock" size={13} color={colors.primary} />
               <Text style={styles.countdownText}>
                 {countdownLabel(envelope.expiresAt)}
               </Text>
@@ -189,10 +192,10 @@ export default function EnvelopeDetailScreen() {
                 accessibilityLabel={copied ? 'Link copied' : 'Copy envelope link'}
                 style={[styles.copyButton, copied && styles.copyButtonDone]}
               >
-                <Ionicons
-                  name={copied ? 'checkmark' : 'copy-outline'}
+                <Icon
+                  name={copied ? 'check' : 'copy'}
                   size={16}
-                  color={copied ? '#0B1F14' : colors.primary}
+                  color={copied ? colors.success : colors.primary}
                 />
               </Pressable>
             </View>
@@ -203,7 +206,7 @@ export default function EnvelopeDetailScreen() {
             <PrimaryButton
               label="SHARE ENVELOPE"
               onPress={handleShare}
-              icon={<Ionicons name="share-outline" size={18} color="#141621" />}
+              icon={<Icon name="share" size={18} color={colors.onPrimary} />}
               style={styles.shareButton}
             />
           </Animated.View>
@@ -329,6 +332,7 @@ export default function EnvelopeDetailScreen() {
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.metaRow}>
       <Text style={styles.metaLabel}>{label}</Text>
@@ -337,7 +341,8 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

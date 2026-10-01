@@ -8,7 +8,8 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
@@ -26,6 +27,7 @@ export function Skeleton({
   style,
   radiusOverride = radius.sm,
 }: Props) {
+  const styles = useThemedStyles(createStyles);
   const shimmer = useSharedValue(0);
   const reduceMotion = useReducedMotion();
 
@@ -72,6 +74,7 @@ type CardProps = {
 
 /** Skeleton shaped like an envelope row. */
 export function SkeletonCard({ style }: CardProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={[styles.card, style]}>
       <Skeleton width={40} height={40} radiusOverride={radius.md} />
@@ -84,9 +87,10 @@ export function SkeletonCard({ style }: CardProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   base: {
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colors.border,
   },
   card: {
     flexDirection: 'row',

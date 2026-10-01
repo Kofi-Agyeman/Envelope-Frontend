@@ -13,7 +13,8 @@ import Animated, {
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { Glow } from '@/components/Glow';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { formatAmountCompact } from '@/utils/format';
@@ -26,6 +27,8 @@ import type { Envelope } from '@/types';
 type Phase = 'creating' | 'ready' | 'error';
 
 export default function CreateEnvelopeScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { token } = useAuth();
@@ -60,6 +63,11 @@ export default function CreateEnvelopeScreen() {
     aura.value = 0;
 
     try {
+      // The endpoint is authenticated, so bail out early rather than firing a
+      // request that can only come back 401.
+      if (!token) {
+        throw new Error('Your session expired. Please sign in again.');
+      }
       const envelope = await api.createEnvelope({ amount }, token);
       if (!mounted.current) return;
       created.current = envelope;
@@ -188,7 +196,8 @@ export default function CreateEnvelopeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

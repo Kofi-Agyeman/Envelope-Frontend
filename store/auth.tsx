@@ -5,13 +5,18 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { authService, type AuthSession } from '@/services/auth';
+import {
+  onSessionExpired,
+  onTokensChanged,
+} from '@/services/tokenManager';
 import type { LoginPayload, Profile, RegisterPayload } from '@/types';
 import type { UserPreferences } from '@/types';
 
-const PREFS_KEY = 'pingpay.preferences';
+const PREFS_KEY = 'envelope.preferences';
 
 export const defaultPreferences: UserPreferences = {
   hideBalance: false,
@@ -45,6 +50,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
 
+  // The boot restore below is async. If the user signs in or signs up while it
+  // is still awaiting storage, its result is stale and must not overwrite the
+  // session that has just been established.
+  const settled = useRef(false);
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -61,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Ignore malformed preference storage.
           }
         }
+        if (settled.current) return;
         if (session) {
           setProfile(session.profile);
           setToken(session.tokens.accessToken);
@@ -69,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setStatus('signed-out');
         }
       } catch {
-        if (active) setStatus('signed-out');
+        if (active && !settled.current) setStatus('signed-out');
       }
     })();
     return () => {
@@ -78,10 +89,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const applySession = useCallback((session: AuthSession) => {
+    settled.current = true;
     setProfile(session.profile);
     setToken(session.tokens.accessToken);
     setStatus('signed-in');
   }, []);
+
+  // A background refresh swaps the access token underneath us; keep the store
+  // in step so later requests use the fresh one. A failed refresh means the
+  // session is unrecoverable, so drop straight back to signed-out.
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        void authService.logout().finally(() => {
+          setProfile(null);
+          setToken(null);
+          setStatus('signed-out');
+        });
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      onTokensChanged((next) => {
+        setToken(next.accessToken);
+      }),
+    [],
+  );
 
   const signIn = useCallback(
     async (payload: LoginPayload) => {

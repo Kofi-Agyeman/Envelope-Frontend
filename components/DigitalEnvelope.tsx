@@ -21,7 +21,8 @@ import Svg, {
 } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Glow } from '@/components/Glow';
-import { colors, gradients, statusColors, type StatusKey } from '@/constants/colors';
+import type { Palette, StatusKey } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 export type EnvelopeVisualState =
@@ -65,6 +66,8 @@ export function DigitalEnvelope({
   sealed = false,
   showCheck,
 }: Props) {
+  const { colors, statusColors, gradients } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const status = STATUS_FOR_STATE[state];
   const accent = status ? statusColors[status].fg : colors.primary;
 
@@ -269,13 +272,13 @@ export function DigitalEnvelope({
             <Path
               d={`M ${size * 0.1} ${bodyHeight + 1}
                   L ${bodyWidth / 2} ${bodyHeight * 0.4}`}
-              stroke="rgba(255,255,255,0.07)"
+              stroke={colors.border}
               strokeWidth={1}
             />
             <Path
               d={`M ${bodyWidth - size * 0.1} ${bodyHeight + 1}
                   L ${bodyWidth / 2} ${bodyHeight * 0.4}`}
-              stroke="rgba(255,255,255,0.07)"
+              stroke={colors.border}
               strokeWidth={1}
             />
           </Svg>
@@ -367,7 +370,8 @@ export function DigitalEnvelope({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   wrapper: {
     alignItems: 'center',
     justifyContent: 'center',

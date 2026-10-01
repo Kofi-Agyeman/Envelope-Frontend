@@ -9,7 +9,6 @@ import {
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { AmountSlider } from '@/components/AmountSlider';
 import { AmountDisplay } from '@/components/AmountDisplay';
 import { BalanceCard } from '@/components/BalanceCard';
@@ -21,7 +20,9 @@ import { QuickAction } from '@/components/QuickAction';
 import { SkeletonCard } from '@/components/Skeleton';
 import { HeroLabel, HeroShell, MoneySafetyNote } from '@/components/MoneySafetyNote';
 import { AMOUNT } from '@/constants/config';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { firstName, greetingForHour } from '@/utils/format';
@@ -29,6 +30,8 @@ import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 
 export default function HomeScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { profile, preferences, setPreference } = useAuth();
@@ -112,12 +115,12 @@ export default function HomeScreen() {
 
       <Animated.View entering={FadeIn.delay(160).duration(420)} style={styles.quickRow}>
         <QuickAction
-          icon="mail-outline"
+          icon="envelope"
           label="New envelope"
           onPress={handleCreate}
         />
         <QuickAction
-          icon="time-outline"
+          icon="clock"
           label="View activity"
           onPress={() => router.push('/(tabs)/activity')}
         />
@@ -143,7 +146,7 @@ export default function HomeScreen() {
           </>
         ) : recent.length === 0 ? (
           <View style={styles.empty}>
-            <Ionicons name="mail-open-outline" size={24} color={colors.textMuted} />
+            <Icon name="envelope" size={24} color={colors.textMuted} />
             <Text style={styles.emptyText}>
               No envelopes yet. Create your first one above.
             </Text>
@@ -163,7 +166,8 @@ export default function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

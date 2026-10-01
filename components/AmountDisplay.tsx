@@ -14,7 +14,8 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { currency } from '@/constants/config';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
@@ -40,6 +41,8 @@ function parseAmount(raw: string): number | null {
  * amount can be typed directly instead of dragged.
  */
 export function AmountDisplay({ value, onCommit, min, max }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<TextInput>(null);
@@ -124,7 +127,8 @@ export function AmountDisplay({ value, onCommit, min, max }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   pressable: {
     alignItems: 'center',
   },
@@ -162,7 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colors.border,
   },
   hintText: {
     ...type.meta,

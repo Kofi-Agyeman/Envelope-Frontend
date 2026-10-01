@@ -15,7 +15,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, gradients } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
@@ -43,6 +44,8 @@ export function PrimaryButton({
   style,
   accessibilityHint,
 }: Props) {
+  const { gradients, colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const pressed = useSharedValue(0);
 
   useEffect(() => {
@@ -58,7 +61,7 @@ export function PrimaryButton({
 
   const dimStyle = useAnimatedStyle(() => ({
     opacity: pressed.value * (isPrimary ? 0.22 : 0.08),
-    backgroundColor: isPrimary ? '#6B5500' : '#FFFFFF',
+    backgroundColor: isPrimary ? colors.primaryDark : colors.text,
   }));
 
   const handlePress = () => {
@@ -86,7 +89,7 @@ export function PrimaryButton({
       >
         {isPrimary ? (
           <LinearGradient
-            colors={gradients.primaryButton}
+            colors={gradients.primaryButton as unknown as [string, string]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.fill}
@@ -107,7 +110,7 @@ export function PrimaryButton({
         >
           {loading ? (
             <ActivityIndicator
-              color={isPrimary ? '#141621' : colors.primary}
+              color={isPrimary ? colors.onPrimary : colors.primary}
               size="small"
             />
           ) : (
@@ -135,7 +138,8 @@ function interpolateScale(pressed: number) {
   return 1 - pressed * 0.025;
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   pressable: {
     height: 58,
     borderRadius: radius.xl,
@@ -173,10 +177,10 @@ const styles = StyleSheet.create({
   },
   label: {
     ...type.button,
-    color: '#141621',
+    color: colors.onPrimary,
   },
   labelPrimary: {
-    color: '#141621',
+    color: colors.onPrimary,
   },
   labelSecondary: {
     color: colors.text,

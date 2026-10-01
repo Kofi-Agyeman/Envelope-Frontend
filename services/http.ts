@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '@/constants/config';
 import { USE_MOCKS } from '@/constants/config';
+import { refreshTokens } from './tokenManager';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -24,7 +25,31 @@ export type RequestOptions = {
   token?: string | null;
   signal?: AbortSignal;
   query?: Record<string, string | number | boolean | undefined>;
+  /** Set to false on the replay so a 401 can only be retried once. */
+  retryOnUnauthorized?: boolean;
 };
+
+/**
+ * FastAPI reports errors inconsistently: a plain `detail` string for handled
+ * cases, an array of field errors for 422 validation, and `message` for some
+ * handlers. Normalise all three into one readable sentence.
+ */
+function extractDetail(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') return 'Something went wrong.';
+  const body = payload as { detail?: unknown; message?: unknown };
+
+  if (typeof body.detail === 'string') return body.detail;
+  if (typeof body.message === 'string') return body.message;
+
+  if (Array.isArray(body.detail)) {
+    const first = body.detail[0] as { msg?: unknown } | undefined;
+    const msg = typeof first?.msg === 'string' ? first.msg : null;
+    // FastAPI prefixes validation messages with "Value error, ".
+    if (msg) return msg.replace(/^Value error,\s*/, '');
+  }
+
+  return 'Something went wrong.';
+}
 
 function buildUrl(path: string, query?: RequestOptions['query']): string {
   const base = API_BASE_URL.replace(/\/+$/, '');
@@ -49,7 +74,7 @@ export async function request<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, token, signal, query } = options;
+  const { method = 'GET', body, token, signal, query, retryOnUnauthorized = true } = options;
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -66,7 +91,7 @@ export async function request<T>(
       signal,
     });
   } catch (error) {
-    throw new ApiError('We could not reach PingPay. Check your connection.', {
+    throw new ApiError('We could not reach Envelope. Check your connection.', {
       isNetworkError: true,
     });
   }
@@ -81,12 +106,24 @@ export async function request<T>(
     payload = null;
   }
 
+  // An expired access token is recoverable: swap the pair and replay the
+  // original call once. A single retry guards against a refresh loop.
+  if (response.status === 401 && token && retryOnUnauthorized) {
+    try {
+      const refreshed = await refreshTokens();
+      return await request<T>(path, {
+        ...options,
+        token: refreshed.accessToken,
+        retryOnUnauthorized: false,
+      });
+    } catch {
+      // Refresh failed, so the session is genuinely over. Fall through and
+      // surface the original 401 rather than the refresh error.
+    }
+  }
+
   if (!response.ok) {
-    const detail =
-      (payload as { detail?: string } | null)?.detail ??
-      (payload as { message?: string } | null)?.message ??
-      'Something went wrong.';
-    throw new ApiError(detail, {
+    throw new ApiError(extractDetail(payload), {
       status: response.status,
       code: (payload as { code?: string } | null)?.code,
     });

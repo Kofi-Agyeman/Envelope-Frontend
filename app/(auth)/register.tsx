@@ -11,10 +11,11 @@ import {
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
 import { Field, PasswordToggle } from '@/components/Field';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
@@ -30,15 +31,14 @@ function scorePassword(password: string): number {
 }
 
 const PASSWORD_LABELS = ['Too short', 'Weak', 'Okay', 'Strong', 'Very strong'];
-const PASSWORD_COLORS = [
-  colors.error,
-  colors.error,
-  colors.warning,
-  colors.success,
-  colors.success,
-];
+const passwordColor = (score: number, colors: Palette) =>
+  [colors.error, colors.error, colors.warning, colors.success, colors.success][
+    Math.min(score, 4)
+  ];
 
 export default function RegisterScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signUp } = useAuth();
@@ -55,10 +55,13 @@ export default function RegisterScreen() {
   const strength = useMemo(() => scorePassword(password), [password]);
 
   const mismatch = confirm.length > 0 && password !== confirm;
+  // Email is optional on the wire (`EmailStr | None`), so a blank field is
+  // valid; a non-blank field must still look like an address.
+  const emailValid = email.trim().length === 0 || email.includes('@');
   const canSubmit =
     fullName.trim().length >= 2 &&
     phone.replace(/\D/g, '').length >= 10 &&
-    email.includes('@') &&
+    emailValid &&
     password.length >= 6 &&
     password === confirm;
 
@@ -75,15 +78,16 @@ export default function RegisterScreen() {
         confirmPassword: confirm,
       });
       haptics.success();
-      // The root navigator swaps to the signed-in tree on its own once
-      // `status` flips, choosing onboarding or the tabs as its initial route.
+      // Leave the auth tree explicitly so the router lands inside the
+      // signed-in stack immediately.
+      router.replace('/onboarding');
     } catch (e) {
       haptics.error();
       setError(e instanceof Error ? e.message : "We couldn't create your account.");
     } finally {
       setLoading(false);
     }
-  }, [canSubmit, confirm, email, fullName, loading, password, phone, signUp]);
+  }, [canSubmit, confirm, email, fullName, loading, password, phone, router, signUp]);
 
   return (
     <KeyboardAvoidingView
@@ -105,13 +109,13 @@ export default function RegisterScreen() {
           accessibilityLabel="Go back"
           style={styles.back}
         >
-          <Ionicons name="chevron-back" size={20} color={colors.text} />
+          <Icon name="chevronBack" size={20} color={colors.text} />
         </Pressable>
 
         <Animated.View entering={FadeIn.duration(400)}>
           <Text style={styles.title}>Create your account</Text>
           <Text style={styles.subtitle}>
-            Your MTN MoMo number becomes your PingPay wallet.
+            Your MTN MoMo number becomes your Envelope wallet.
           </Text>
         </Animated.View>
 
@@ -135,7 +139,7 @@ export default function RegisterScreen() {
             testID="register-phone"
           />
           <Field
-            label="Email"
+            label="Email (optional)"
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
@@ -166,13 +170,15 @@ export default function RegisterScreen() {
                       styles.strengthBar,
                       {
                         backgroundColor:
-                          i < strength ? PASSWORD_COLORS[strength] : 'rgba(255,255,255,0.1)',
+                          i < strength
+                            ? passwordColor(strength, colors)
+                            : colors.border,
                       },
                     ]}
                   />
                 ))}
               </View>
-              <Text style={[styles.strengthLabel, { color: PASSWORD_COLORS[strength] }]}>
+              <Text style={[styles.strengthLabel, { color: passwordColor(strength, colors) }]}>
                 {PASSWORD_LABELS[strength]}
               </Text>
             </View>
@@ -190,14 +196,14 @@ export default function RegisterScreen() {
 
           {mismatch ? (
             <Animated.View entering={FadeIn.duration(180)} style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+              <Icon name="alert" size={16} color={colors.error} />
               <Text style={styles.errorText}>Passwords do not match.</Text>
             </Animated.View>
           ) : null}
 
           {error ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
-              <Ionicons name="alert-circle-outline" size={16} color={colors.error} />
+              <Icon name="alert" size={16} color={colors.error} />
               <Text style={styles.errorText}>{error}</Text>
             </Animated.View>
           ) : null}
@@ -225,7 +231,8 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

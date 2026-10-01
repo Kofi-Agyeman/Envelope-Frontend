@@ -3,9 +3,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import { Icon, type IconName } from '@/components/Icon';
 import { SkeletonCard } from '@/components/Skeleton';
-import { colors, statusColors } from '@/constants/colors';
+import type { Palette, StatusKey } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { dayLabel, formatTime } from '@/utils/format';
@@ -14,19 +15,21 @@ import type { ActivityEvent, ActivityEventType } from '@/types';
 
 const META: Record<
   ActivityEventType,
-  { icon: keyof typeof Ionicons.glyphMap; status: keyof typeof statusColors }
+  { icon: IconName; status: StatusKey }
 > = {
-  envelope_created: { icon: 'mail-outline', status: 'waiting' },
-  envelope_claimed: { icon: 'person-outline', status: 'claimed' },
-  payment_processing: { icon: 'sync-outline', status: 'processing' },
-  payment_completed: { icon: 'checkmark-circle-outline', status: 'completed' },
-  envelope_expired: { icon: 'time-outline', status: 'expired' },
-  payment_failed: { icon: 'alert-circle-outline', status: 'failed' },
+  envelope_created: { icon: 'envelope', status: 'waiting' },
+  envelope_claimed: { icon: 'profile', status: 'claimed' },
+  payment_processing: { icon: 'sync', status: 'processing' },
+  payment_completed: { icon: 'checkCircle', status: 'completed' },
+  envelope_expired: { icon: 'clock', status: 'expired' },
+  payment_failed: { icon: 'alert', status: 'failed' },
 };
 
 type Group = { label: string; events: ActivityEvent[] };
 
 export default function ActivityScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { activity, loadingActivity } = useData();
@@ -62,7 +65,7 @@ export default function ActivityScreen() {
         </View>
       ) : groups.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="pulse-outline" size={24} color={colors.textMuted} />
+          <Icon name="activity" size={24} color={colors.textMuted} />
           <Text style={styles.emptyText}>No activity yet.</Text>
         </View>
       ) : (
@@ -100,6 +103,8 @@ function ActivityRow({
   isLast: boolean;
   onPress?: () => void;
 }) {
+  const { statusColors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const meta = META[event.type];
   const palette = statusColors[meta.status];
 
@@ -108,7 +113,7 @@ function ActivityRow({
       <Animated.View style={styles.row}>
         <View style={styles.rail}>
           <View style={[styles.iconWrap, { backgroundColor: palette.bg }]}>
-            <Ionicons name={meta.icon} size={15} color={palette.fg} />
+            <Icon name={meta.icon} size={15} color={palette.fg} />
           </View>
           {!isLast ? <View style={styles.railLine} /> : null}
         </View>
@@ -149,7 +154,8 @@ function ActivityRow({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,

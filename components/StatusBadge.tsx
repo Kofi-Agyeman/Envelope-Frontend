@@ -6,7 +6,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, statusColors, type StatusKey } from '@/constants/colors';
+import type { Palette, StatusKey } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 
@@ -36,6 +37,8 @@ type Props = {
 };
 
 export function StatusBadge({ status, label, style, size = 'md' }: Props) {
+  const { statusColors, colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const palette = statusColors[status];
   const enter = useSharedValue(0);
 
@@ -66,7 +69,8 @@ export function StatusBadge({ status, label, style, size = 'md' }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   badge: {
     flexDirection: 'row',
     alignItems: 'center',

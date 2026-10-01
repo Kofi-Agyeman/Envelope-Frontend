@@ -13,7 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AMOUNT, currency } from '@/constants/config';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
@@ -56,6 +57,8 @@ export function AmountSlider({
   max = AMOUNT.max,
   step = AMOUNT.step,
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const trackWidth = useSharedValue(0);
   const progress = useSharedValue(amountToRatio(value, min, max));
   const isDragging = useSharedValue(0);
@@ -245,7 +248,8 @@ export function AmountSlider({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   wrapper: {
     width: '100%',
   },
@@ -256,7 +260,7 @@ const styles = StyleSheet.create({
   track: {
     height: TRACK_HEIGHT,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colors.border,
     borderWidth: 1,
     borderColor: colors.border,
     justifyContent: 'center',
@@ -298,7 +302,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 12,
-    backgroundColor: '#0B0C12',
+    backgroundColor: colors.background,
     opacity: 0.85,
   },
   bounds: {

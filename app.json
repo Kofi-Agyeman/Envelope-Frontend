@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "PingPay",
-    "slug": "pingpay",
+    "name": "Envelope",
+    "slug": "envelope",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "scheme": "pingpay",
-    "userInterfaceStyle": "dark",
+    "scheme": "envelope",
+    "userInterfaceStyle": "automatic",
     "backgroundColor": "#090A0F",
     "newArchEnabled": true,
     "splash": {
@@ -16,10 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.pingpay.sender"
+      "bundleIdentifier": "app.envelope.sender"
     },
     "android": {
-      "package": "app.pingpay.sender",
+      "package": "app.envelope.sender",
       "edgeToEdgeEnabled": true,
       "adaptiveIcon": {
         "backgroundColor": "#090A0F",

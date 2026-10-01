@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/constants/colors';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { AMOUNT, currency } from '@/constants/config';
@@ -17,6 +18,7 @@ export function PresetChips({
   onSelect,
   presets = AMOUNT.presets,
 }: Props) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.row}>
       {presets.map((preset) => {
@@ -53,7 +55,8 @@ export function PresetChips({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -63,7 +66,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg - 2,
     paddingVertical: spacing.sm + 1,
     borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.045)',
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -72,7 +75,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   chipPressed: {
-    backgroundColor: 'rgba(255,255,255,0.09)',
+    backgroundColor: colors.border,
   },
   label: {
     fontFamily: fontFamily.semibold,
@@ -81,7 +84,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   labelActive: {
-    color: '#141621',
+    color: colors.onPrimary,
   },
   labelIdle: {
     color: colors.textSecondary,

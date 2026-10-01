@@ -1,6 +1,6 @@
-# PingPay — Envelope (Sender App)
+# Envelope (Sender App)
 
-A React Native / Expo frontend for **PingPay**, a digital money envelope for MTN MoMo.
+A React Native / Expo frontend for **Envelope**, a digital money envelope for MTN MoMo.
 
 The sender never needs the recipient's MoMo number. They choose an amount, get a
 private link, and send it. The money stays in their MoMo account until someone
@@ -90,8 +90,8 @@ services/
 ├── mockService.ts        In-memory backend
 └── mockData.ts           Seed fixtures
 
-store/     auth.tsx, data.tsx — app state
-constants/ colors, typography, layout, config
+store/     auth.tsx, data.tsx, theme.tsx — app state
+constants/ theme, typography, layout, config
 utils/     format, haptics, async
 hooks/     useReducedMotion
 ```
@@ -103,6 +103,29 @@ the `/` path; a second file claiming `/` makes Expo Router silently pick one of
 the two. Auth gating lives in `_layout.tsx`, which swaps between a signed-out and
 a signed-in navigator.
 
+## Theming
+
+Light, dark, and system themes are user-selectable under **Profile → Appearance**
+and persist to `AsyncStorage` under `envelope.theme.mode`.
+
+- `constants/theme.ts` holds the two palettes plus `makeStatusColors`,
+  `makeGradients`, and `makeShadows`. These are pure functions of the palette,
+  not module-level constants, because a module-level constant would freeze one
+  theme at import time.
+- `store/theme.ts` owns the resolved palette and persists the user's choice.
+- Components never import a colour constant directly. They read
+  `useTheme().colors` and build styles with `useThemedStyles((colors) => ...)`,
+  which memoises the stylesheet per scheme.
+
+## Icons
+
+All glyphs come from `components/Icon.tsx`, a single `react-native-svg` set drawn
+on one 24×24 grid with a shared 2px stroke, round caps, and round joins. Using one
+source keeps the optical weight consistent; mixing icon fonts reads as generic.
+
+Icons are semantic (`envelope`, `wallet`, `lock`, `checkCircle`), not decorative
+nouns, so a glyph can be reused wherever the meaning repeats.
+
 ## Backend integration
 
 The UI never imports a transport directly. Everything goes through
@@ -113,13 +136,90 @@ getProfile(token)
 getBalance(token)
 getEnvelopes(token)
 getEnvelope(id, token)
-createEnvelope({ amount }, token)
+createEnvelope({ amount }, token)   // -> POST /api/payments/send
 getActivity(token)
 ```
 
-Each function checks `USE_MOCKS`. When `EXPO_PUBLIC_API_URL` is set, calls go
-to the FastAPI backend; otherwise they resolve against `mockService` with
-realistic latency. Swapping to production is a config change, not a refactor.
+Each function checks `USE_MOCKS`. Mocks are **opt-in**
+(`EXPO_PUBLIC_USE_MOCKS=true`); by default the app talks to the real backend at
+`http://127.0.0.1:8000/api`. An Android emulator reaches the host at
+`10.0.2.2`, so set `EXPO_PUBLIC_API_URL=http://10.0.2.2:8000/api` there.
+
+### Authentication
+
+Auth is implemented against the live FastAPI backend:
+
+| Endpoint | Request | Response |
+| --- | --- | --- |
+| `POST /api/auth/register` | `{ full_name, phone_number, email?, password }` | `{ message, user_id }` |
+| `POST /api/auth/login` | `{ phone_number, password }` | `{ access_token, refresh_token, token_type }` |
+| `POST /api/auth/refresh?refresh_token=…` | token as a **query** parameter | `{ access_token, refresh_token, token_type }` |
+
+Two details are easy to get wrong and are worth stating explicitly:
+
+- **Register issues no tokens.** It only confirms the account and returns the
+  new `user_id`, so `authService.register` signs in immediately afterwards to
+  obtain a usable session.
+- **Refresh takes a query parameter,** not a JSON body.
+
+`services/tokenManager.ts` owns the pair. `http.ts` calls `refreshTokens()` on
+any `401` and replays the original request exactly once
+(`retryOnUnauthorized: false` on the replay prevents a refresh loop). The
+in-flight promise is shared, so several requests hitting `401` together produce
+one refresh rather than N racing on the rotating token — verified: the backend
+revokes the old refresh token on use. A failed refresh fires
+`onSessionExpired`, which drops the app back to signed-out.
+
+The profile is read from `GET /api/users/me` after the token exists, since
+neither auth endpoint returns user details. Snake_case wire shapes live in
+`types/index.ts` (`RegisterRequestBody`, `LoginRequestBody`, `TokenPairResponse`,
+`MeResponse`) and are mapped to camelCase app models at the service boundary.
+
+Run `node scripts/verify-auth.js` to exercise the whole contract against a
+running backend.
+
+### Creating a payment
+
+Envelope creation posts to `POST /api/payments/send` with the access token:
+
+```ts
+// SendMoneyRequest — amount is a Decimal(gt=0, max_digits=12, decimal_places=2)
+{ "amount": "150.00" }
+```
+
+The amount is sent as a **string**, not a JSON number. A float can carry binary
+rounding (`0.1 + 0.2 === 0.30000000000000004`), which would violate
+`decimal_places=2` or produce a cedi amount that is off by a cent.
+
+The response is a `TransactionResponse`:
+
+```ts
+{
+  transaction_id: string;   // UUID
+  status: string;           // free-form, normalised by mapStatus()
+  amount: string;           // Decimal, serialised as a string
+  currency: string;
+  link: string;             // the recipient's claim link
+}
+```
+
+`link` becomes the envelope's `shareUrl` and is what the recipient opens to
+claim the cash. Two adaptations happen at the service boundary:
+
+- `status` is normalised onto `EnvelopeStatus`. Unknown values fall back to
+  `waiting`, not `failed` — a new backend state is far likelier to be a healthy
+  in-progress envelope than a genuine failure.
+- The UI's 6-character envelope code is derived from the tail of the claim
+  link, since the backend returns a UUID rather than a short code.
+
+`node scripts/verify-payments-mapping.js` checks this mapping in isolation.
+
+### Not yet implemented on the backend
+
+`/api/envelopes`, `/api/activity` and `/api/wallet/balance` return `404`. The
+data store already degrades gracefully on failure, so those screens show empty
+states rather than crashing, but envelope listing, history, and balance are not
+yet backed by real endpoints. Creation now works via `/api/payments/send`.
 
 ### Security posture
 

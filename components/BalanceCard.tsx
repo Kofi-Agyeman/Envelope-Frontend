@@ -6,10 +6,11 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/constants/colors';
+import { Icon } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { formatMoney } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import type { Balance } from '@/types';
@@ -33,8 +34,10 @@ export function BalanceCard({
   greeting,
   name,
   onAvatarPress,
-  initials = 'PP',
+  initials = 'EN',
 }: Props) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const enter = useSharedValue(0);
 
   useEffect(() => {
@@ -96,11 +99,7 @@ export function BalanceCard({
             accessibilityLabel={hidden ? 'Show balance' : 'Hide balance'}
             style={styles.eyeButton}
           >
-            <Ionicons
-              name={hidden ? 'eye-off-outline' : 'eye-outline'}
-              size={17}
-              color={colors.textMuted}
-            />
+            <Icon name={hidden ? 'eyeOff' : 'eye'} size={17} color={colors.textMuted} />
           </Pressable>
         </View>
 
@@ -131,7 +130,8 @@ export function BalanceCard({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
     width: '62%',
     borderRadius: radius.md,
     marginTop: 10,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: colors.border,
   },
   walletRow: {
     flexDirection: 'row',
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,210,28,0.16)',
+    backgroundColor: colors.primaryMuted,
   },
   mtnMarkText: {
     fontFamily: fontFamily.bold,

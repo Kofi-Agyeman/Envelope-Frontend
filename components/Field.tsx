@@ -6,10 +6,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colors } from '@/constants/colors';
+import { Icon } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 
 type Props = {
   label: string;
@@ -41,6 +42,8 @@ export function Field({
   testID,
 }: Props) {
   const [focused, setFocused] = useState(false);
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
 
   return (
     <View style={styles.field}>
@@ -79,6 +82,7 @@ export function PasswordToggle({
   secure: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -86,16 +90,13 @@ export function PasswordToggle({
       accessibilityRole="button"
       accessibilityLabel={secure ? 'Show password' : 'Hide password'}
     >
-      <Ionicons
-        name={secure ? 'eye-outline' : 'eye-off-outline'}
-        size={18}
-        color={colors.textMuted}
-      />
+      <Icon name={secure ? 'eye' : 'eyeOff'} size={18} color={colors.textMuted} />
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette) =>
+  StyleSheet.create({
   field: {
     gap: spacing.sm,
   },
@@ -128,8 +129,8 @@ const styles = StyleSheet.create({
     ...type.body,
     fontSize: 16,
     color: colors.text,
-    padding: 0,
+padding: 0,
   },
-});
+  });
 
 export default Field;

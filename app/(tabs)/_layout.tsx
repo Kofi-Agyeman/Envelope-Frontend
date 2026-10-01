@@ -1,28 +1,34 @@
 import { Tabs } from 'expo-router/js-tabs';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/constants/colors';
+import { Icon, type IconName } from '@/components/Icon';
+import type { Palette } from '@/constants/theme';
+import { useThemedStyles, useTheme } from '@/store/theme';
 import { haptics } from '@/utils/haptics';
 
-const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
-  index: { active: 'home', inactive: 'home-outline' },
-  envelopes: { active: 'mail', inactive: 'mail-outline' },
-  activity: { active: 'pulse', inactive: 'pulse-outline' },
-  profile: { active: 'person', inactive: 'person-outline' },
+const TAB_ICONS: Record<string, IconName> = {
+  index: 'home',
+  envelopes: 'envelope',
+  activity: 'activity',
+  profile: 'profile',
 };
 
 function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const { colors, scheme } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
   const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 8 : 10);
 
   return (
     <View style={[styles.wrapper, { paddingBottom: bottomPad }]}>
       <LinearGradient
-        colors={['rgba(9,10,15,0)', 'rgba(9,10,15,0.95)']}
+        colors={[
+          'transparent',
+          scheme === 'dark' ? 'rgba(9,10,15,0.95)' : 'rgba(244,246,251,0.95)',
+        ]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
@@ -56,10 +62,11 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 accessibilityLabel={label}
               >
                 {focused ? <View style={styles.activeDot} /> : null}
-                <Ionicons
-                  name={focused ? icons.active : icons.inactive}
+                <Icon
+                  name={icons}
                   size={22}
                   color={focused ? colors.primary : colors.textMuted}
+                  strokeWidth={focused ? 2.1 : 1.7}
                 />
                 <View
                   style={[
@@ -77,6 +84,7 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 }
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       tabBar={(props) => <TabBar {...props} />}
@@ -105,7 +113,8 @@ export default function TabsLayout() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (colors: Palette, scheme: 'light' | 'dark') =>
+  StyleSheet.create({
   wrapper: {
     position: 'absolute',
     left: 0,
@@ -120,7 +129,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 24,
-    backgroundColor: 'rgba(23,25,35,0.96)',
+    backgroundColor:
+      scheme === 'dark' ? 'rgba(23,25,35,0.96)' : 'rgba(255,255,255,0.96)',
     borderWidth: 1,
     borderColor: colors.border,
   },
