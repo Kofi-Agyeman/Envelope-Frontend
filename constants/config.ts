@@ -8,7 +8,7 @@ export const APP_WORDMARK = 'ENVELOPE';
  * in mock mode. In production the backend always returns the full link.
  */
 export const WEB_BASE_URL =
-  process.env.EXPO_PUBLIC_WEB_URL ?? 'https://envelope.app';
+  process.env.EXPO_PUBLIC_WEB_URL ?? 'https://envlope.onrender.com';
 
 /**
  * Base URL of the FastAPI backend, including the `/api` prefix that every
@@ -20,7 +20,7 @@ export const WEB_BASE_URL =
  * to `http://10.0.2.2:8000/api` when running there.
  */
 export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://10.97.233.207:8000/api';
+  process.env.EXPO_PUBLIC_API_URL ?? 'https://envlope.onrender.com/api';
 
 /**
  * When true the app uses the in-memory mock service instead of performing
