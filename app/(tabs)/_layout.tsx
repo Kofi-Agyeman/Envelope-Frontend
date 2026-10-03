@@ -1,11 +1,12 @@
 import { Tabs } from 'expo-router/js-tabs';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Icon, type IconName } from '@/components/Icon';
 import type { Palette } from '@/constants/theme';
+import { layout } from '@/constants/layout';
+import { fontFamily } from '@/constants/typography';
 import { useThemedStyles, useTheme } from '@/store/theme';
 import { haptics } from '@/utils/haptics';
 
@@ -17,22 +18,14 @@ const TAB_ICONS: Record<string, IconName> = {
 };
 
 function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, scheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 8 : 10);
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 6 : 8);
 
   return (
-    <View style={[styles.wrapper, { paddingBottom: bottomPad }]}>
-      <LinearGradient
-        colors={[
-          'transparent',
-          scheme === 'dark' ? 'rgba(9,10,15,0.95)' : 'rgba(244,246,251,0.95)',
-        ]}
-        style={StyleSheet.absoluteFill}
-        pointerEvents="none"
-      />
-      <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: bottomPad }]}>
+      <View style={styles.inner}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const label =
@@ -40,42 +33,37 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
               ? options.tabBarLabel
               : options.title ?? route.name;
           const focused = state.index === index;
-          const icons = TAB_ICONS[route.name] ?? TAB_ICONS.index;
+          const icon = TAB_ICONS[route.name] ?? TAB_ICONS.index;
 
           return (
-            <View key={route.key} style={styles.itemWrap}>
-              <Pressable
-                onPress={() => {
-                  const event = navigation.emit({
-                    type: 'tabPress',
-                    target: route.key,
-                    canPreventDefault: true,
-                  });
-                  if (!focused && !event.defaultPrevented) {
-                    haptics.light();
-                    navigation.navigate(route.name);
-                  }
-                }}
-                style={styles.touch}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: focused }}
-                accessibilityLabel={label}
-              >
-                {focused ? <View style={styles.activeDot} /> : null}
+            <Pressable
+              key={route.key}
+              onPress={() => {
+                const event = navigation.emit({
+                  type: 'tabPress',
+                  target: route.key,
+                  canPreventDefault: true,
+                });
+                if (!focused && !event.defaultPrevented) {
+                  haptics.light();
+                  navigation.navigate(route.name);
+                }
+              }}
+              style={styles.item}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={label}
+            >
+              <View style={[styles.iconPill, focused && styles.iconPillActive]}>
                 <Icon
-                  name={icons}
-                  size={22}
-                  color={focused ? colors.primary : colors.textMuted}
-                  strokeWidth={focused ? 2.1 : 1.7}
+                  name={icon}
+                  size={21}
+                  color={focused ? colors.text : colors.textMuted}
+                  strokeWidth={focused ? 2.1 : 1.8}
                 />
-                <View
-                  style={[
-                    styles.indicator,
-                    focused && styles.indicatorActive,
-                  ]}
-                />
-              </Pressable>
-            </View>
+              </View>
+              <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
+            </Pressable>
           );
         })}
       </View>
@@ -93,74 +81,53 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: colors.background },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{ title: 'Home', tabBarLabel: 'Home' }}
-      />
-      <Tabs.Screen
-        name="envelopes"
-        options={{ title: 'Envelopes', tabBarLabel: 'Envelopes' }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{ title: 'Activity', tabBarLabel: 'Activity' }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarLabel: 'Profile' }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarLabel: 'Home' }} />
+      <Tabs.Screen name="envelopes" options={{ title: 'Envelopes', tabBarLabel: 'Envelopes' }} />
+      <Tabs.Screen name="activity" options={{ title: 'Activity', tabBarLabel: 'Activity' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarLabel: 'Profile' }} />
     </Tabs>
   );
 }
 
-const createStyles = (colors: Palette, scheme: 'light' | 'dark') =>
+const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  wrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: 18,
-  },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    marginHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 24,
-    backgroundColor:
-      scheme === 'dark' ? 'rgba(23,25,35,0.96)' : 'rgba(255,255,255,0.96)',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  itemWrap: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  touch: {
-    width: 64,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  activeDot: {
-    position: 'absolute',
-    top: 2,
-    width: 4,
-    height: 4,
-    borderRadius: 4,
-    backgroundColor: colors.primary,
-  },
-  indicator: {
-    height: 2,
-    width: 0,
-    borderRadius: 2,
-    backgroundColor: 'transparent',
-  },
-  indicatorActive: {
-    width: 16,
-    backgroundColor: colors.primary,
-  },
-});
+    bar: {
+      backgroundColor: colors.surface,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.borderStrong,
+      paddingTop: 6,
+    },
+    inner: {
+      flexDirection: 'row',
+      maxWidth: layout.maxContentWidth,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    item: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 2,
+      minHeight: layout.minTouchTarget + 6,
+    },
+    iconPill: {
+      width: 56,
+      height: 30,
+      borderRadius: 15,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconPillActive: {
+      backgroundColor: colors.primaryMuted,
+    },
+    label: {
+      fontFamily: fontFamily.medium,
+      fontSize: 11,
+      lineHeight: 14,
+      color: colors.textMuted,
+    },
+    labelActive: {
+      fontFamily: fontFamily.semibold,
+      color: colors.text,
+    },
+  });

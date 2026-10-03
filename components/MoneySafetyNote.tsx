@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Icon } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
@@ -21,101 +20,57 @@ export function MoneySafetyNote({ compact }: Props) {
 
   return (
     <View style={[styles.row, compact && styles.rowCompact]}>
-      <Icon name="lock" size={13} color={colors.textMuted} strokeWidth={2.1} />
+      <Icon name="shield" size={16} color={colors.success} strokeWidth={2} />
       <Text style={styles.text}>
-        Your money stays in your MTN MoMo account until the recipient is
-        identified.
+        Your money stays in your MTN MoMo wallet until the recipient claims it.
       </Text>
     </View>
   );
 }
 
+/** Card that frames the create-envelope composer. */
 export function HeroShell({ children }: { children: React.ReactNode }) {
-  const { gradients } = useTheme();
+  const { shadows } = useTheme();
   const styles = useThemedStyles(createStyles);
-
-  return (
-    <View style={styles.shell}>
-      <LinearGradient
-        colors={gradients.hero as unknown as [string, string]}
-        start={{ x: 0.1, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={styles.shellGradient}
-      />
-      <View style={styles.shellBorder} pointerEvents="none" />
-      {children}
-    </View>
-  );
+  return <View style={[styles.shell, shadows.card]}>{children}</View>;
 }
 
 export function HeroLabel({ children }: { children: React.ReactNode }) {
   const styles = useThemedStyles(createStyles);
-
-  return (
-    <View style={styles.labelRow}>
-      <View style={styles.labelDot} />
-      <Text style={styles.label}>{children}</Text>
-    </View>
-  );
+  return <Text style={styles.label}>{children}</Text>;
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
     shell: {
       borderRadius: radius.xxl,
-      overflow: 'hidden',
-      borderWidth: 1,
-      borderColor: colors.borderStrong,
-    },
-    shellGradient: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: 0,
-      bottom: 0,
-    },
-    shellBorder: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: 0,
-      bottom: 0,
-      borderRadius: radius.xxl,
+      backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
     },
-    labelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      alignSelf: 'center',
-    },
-    labelDot: {
-      width: 5,
-      height: 5,
-      borderRadius: 5,
-      backgroundColor: colors.primary,
-    },
     label: {
-      ...type.heroLabel,
-      color: colors.primary,
+      ...type.overline,
+      color: colors.textMuted,
+      textTransform: 'uppercase',
     },
     row: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       gap: spacing.sm,
-      justifyContent: 'center',
-      paddingHorizontal: spacing.lg,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm + 2,
+      borderRadius: radius.md,
+      backgroundColor: colors.successMuted,
     },
     rowCompact: {
+      backgroundColor: 'transparent',
       paddingHorizontal: 0,
     },
     text: {
       ...type.meta,
       fontFamily: fontFamily.medium,
-      color: colors.textMuted,
+      color: colors.textSecondary,
       flexShrink: 1,
-      textAlign: 'center',
     },
   });
 

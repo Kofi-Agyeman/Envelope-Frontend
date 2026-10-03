@@ -1,22 +1,22 @@
 import React, { useCallback } from 'react';
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { PrimaryButton } from '@/components/PrimaryButton';
-import { Icon, type IconName } from '@/components/Icon';
+import type { IconName } from '@/components/Icon';
+import {
+  Card,
+  GroupLabel,
+  ListGroup,
+  ListRow,
+  ScreenHeader,
+  SegmentedControl,
+  screenContent,
+} from '@/components/ui';
 import type { Palette, ThemeMode } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { layout, radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { radius, spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
 import { maskPhone } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useAuth } from '@/store/auth';
@@ -29,50 +29,35 @@ const THEME_OPTIONS: { value: ThemeMode; label: string; icon: IconName }[] = [
   { value: 'system', label: 'Auto', icon: 'system' },
 ];
 
-const APPEARANCE_ICON: Record<ThemeMode, IconName> = {
-  light: 'sun',
-  dark: 'moon',
-  system: 'system',
-};
+type PrefRow = { icon: IconName; label: string; subtitle: string; pref: keyof UserPreferences };
 
-const SECTIONS: {
-  title: string;
-  rows: {
-    icon: IconName;
-    label: string;
-    value?: string;
-    pref?: keyof UserPreferences;
-  }[];
-}[] = [
+const SECURITY_ROWS: PrefRow[] = [
   {
-    title: 'Account',
-    rows: [
-      { icon: 'profile', label: 'Personal information', value: 'Edit' },
-      { icon: 'wallet', label: 'MTN MoMo wallet', value: '•••• 4567' },
-      { icon: 'lock', label: 'Password & security', value: '' },
-    ],
+    icon: 'fingerprint',
+    label: 'Biometric sign-in',
+    subtitle: 'Use Face ID or fingerprint',
+    pref: 'biometricsEnabled',
   },
   {
-    title: 'Security',
-    rows: [
-      { icon: 'fingerprint', label: 'Biometric authentication', pref: 'biometricsEnabled' },
-    ],
+    icon: 'eyeOff',
+    label: 'Hide balance',
+    subtitle: 'Mask your balance on Home',
+    pref: 'hideBalance',
+  },
+];
+
+const PREFERENCE_ROWS: PrefRow[] = [
+  {
+    icon: 'bell',
+    label: 'Push notifications',
+    subtitle: 'Claims and completed payments',
+    pref: 'pushNotifications',
   },
   {
-    title: 'Preferences',
-    rows: [
-      { icon: 'bell', label: 'Push notifications', pref: 'pushNotifications' },
-      { icon: 'eyeOff', label: 'Hide balance', pref: 'hideBalance' },
-      { icon: 'haptics', label: 'Haptic feedback', pref: 'hapticFeedback' },
-      { icon: 'cash', label: 'Payment settings', value: '' },
-    ],
-  },
-  {
-    title: 'Support',
-    rows: [
-      { icon: 'help', label: 'Help centre', value: '' },
-      { icon: 'document', label: 'Terms & privacy', value: '' },
-    ],
+    icon: 'haptics',
+    label: 'Haptic feedback',
+    subtitle: 'Vibrate on taps and confirmations',
+    pref: 'hapticFeedback',
   },
 ];
 
@@ -90,7 +75,11 @@ export default function ProfileScreen() {
       void signOut().then(() => router.replace('/(auth)/login'));
     };
 
-    if (typeof Alert?.alert === 'function') {
+    // react-native-web ships Alert.alert as a no-op, so the web needs its own
+    // confirmation or log out silently does nothing.
+    if (Platform.OS === 'web') {
+      if (window.confirm('Log out? You will need to sign in again to send envelopes.')) run();
+    } else if (typeof Alert?.alert === 'function') {
       Alert.alert('Log out', 'You will need to sign in again to send envelopes.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Log out', style: 'destructive', onPress: run },
@@ -100,150 +89,131 @@ export default function ProfileScreen() {
     }
   }, [router, signOut]);
 
+  const renderSwitch = (row: PrefRow) => (
+    <ListRow
+      key={row.pref}
+      icon={row.icon}
+      title={row.label}
+      subtitle={row.subtitle}
+      trailing={
+        <Switch
+          value={preferences[row.pref]}
+          onValueChange={(value) => {
+            haptics.light();
+            setPreference(row.pref, value);
+          }}
+          trackColor={{ false: colors.borderStrong, true: colors.success }}
+          thumbColor="#FFFFFF"
+          ios_backgroundColor={colors.borderStrong}
+          accessibilityLabel={row.label}
+        />
+      }
+    />
+  );
+
+  const completed = envelopes.filter((e) => e.status === 'completed').length;
+  const waiting = envelopes.filter((e) => e.status === 'waiting').length;
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + 108 },
+        screenContent,
+        { paddingTop: insets.top + spacing.xl, paddingBottom: spacing.xxxl },
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>Profile</Text>
+      <ScreenHeader title="Profile" />
 
-      <Animated.View entering={FadeIn.duration(400)} style={styles.identity}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{profile?.initials ?? 'PP'}</Text>
-        </View>
-        <Text style={styles.name}>{profile?.fullName ?? 'Sender'}</Text>
-        <Text style={styles.email}>{profile?.email ?? ''}</Text>
-        <View style={styles.walletPill}>
-          <View style={styles.mtnMark}>
-            <Text style={styles.mtnMarkText}>MTN</Text>
+      <Animated.View entering={FadeIn.duration(320)}>
+        <Card style={styles.identityCard}>
+          <View style={styles.identity}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{profile?.initials ?? 'EN'}</Text>
+            </View>
+            <View style={styles.identityText}>
+              <Text style={styles.name} numberOfLines={1}>
+                {profile?.fullName ?? 'Sender'}
+              </Text>
+              {profile?.email ? (
+                <Text style={styles.email} numberOfLines={1}>
+                  {profile.email}
+                </Text>
+              ) : null}
+              <View style={styles.walletPill}>
+                <View style={styles.mtnMark}>
+                  <Text style={styles.mtnMarkText}>MTN</Text>
+                </View>
+                <Text style={styles.walletText}>
+                  {profile ? maskPhone(profile.phone) : '•••• 0000'}
+                </Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.walletText}>
-            {profile ? maskPhone(profile.phone) : ''}
-          </Text>
-        </View>
+
+          <View style={styles.stats}>
+            <Stat value={envelopes.length} label="Envelopes" />
+            <View style={styles.statDivider} />
+            <Stat value={completed} label="Completed" />
+            <View style={styles.statDivider} />
+            <Stat value={waiting} label="Waiting" />
+          </View>
+        </Card>
       </Animated.View>
 
-      <View style={styles.stats}>
-        <Stat value={String(envelopes.length)} label="Envelopes" />
-        <View style={styles.statDivider} />
-        <Stat
-          value={String(envelopes.filter((e) => e.status === 'completed').length)}
-          label="Completed"
-        />
-        <View style={styles.statDivider} />
-        <Stat
-          value={String(envelopes.filter((e) => e.status === 'waiting').length)}
-          label="Waiting"
-        />
+      <View style={styles.section}>
+        <GroupLabel>Account</GroupLabel>
+        <ListGroup>
+          <ListRow icon="profile" title="Personal information" subtitle={profile?.fullName} />
+          <ListRow
+            icon="wallet"
+            title="MTN MoMo wallet"
+            value={profile ? maskPhone(profile.phone) : undefined}
+          />
+          <ListRow icon="lock" title="Password" subtitle="Change your sign-in password" />
+        </ListGroup>
       </View>
-
-      {SECTIONS.map((section) => (
-        <View key={section.title} style={styles.section}>
-          <Text style={styles.sectionLabel}>{section.title}</Text>
-          <View style={styles.group}>
-            {section.rows.map((row, index) => (
-              <View
-                key={row.label}
-                style={[
-                  styles.row,
-                  index < section.rows.length - 1 && styles.rowBorder,
-                ]}
-              >
-                <View style={styles.rowIcon}>
-                  <Icon name={row.icon} size={17} color={colors.textSecondary} />
-                </View>
-
-                <Text style={styles.rowLabel}>{row.label}</Text>
-
-                {row.pref ? (
-                  <Switch
-                    value={preferences[row.pref]}
-                    onValueChange={(value) => {
-                      haptics.light();
-                      setPreference(row.pref as keyof UserPreferences, value);
-                    }}
-                    trackColor={{ false: colors.borderStrong, true: colors.primaryMuted }}
-                    thumbColor={
-                      preferences[row.pref] ? colors.primary : colors.textMuted
-                    }
-                    ios_backgroundColor={colors.borderStrong}
-                    accessibilityLabel={row.label}
-                  />
-                ) : (
-                  <View style={styles.rowTrailing}>
-                    {row.value ? (
-                      <Text style={styles.rowValue}>{row.value}</Text>
-                    ) : null}
-                    <Icon name="chevronForward" size={15} color={colors.textMuted} />
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        </View>
-      ))}
 
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Appearance</Text>
-        <View style={styles.group}>
-          <View style={styles.row}>
-            <View style={styles.rowIcon}>
-              <Icon name={APPEARANCE_ICON[mode]} size={17} color={colors.textSecondary} />
-            </View>
-            <Text style={styles.rowLabel}>Theme</Text>
-            <View style={styles.segment}>
-              {THEME_OPTIONS.map((option) => {
-                const selected = mode === option.value;
-                return (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => {
-                      haptics.light();
-                      setMode(option.value);
-                    }}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={`${option.label} theme`}
-                    style={[styles.segmentItem, selected && styles.segmentItemActive]}
-                  >
-                    <Icon
-                      name={option.icon}
-                      size={14}
-                      color={selected ? colors.onPrimary : colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.segmentLabel,
-                        selected && styles.segmentLabelActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
+        <GroupLabel>Security & privacy</GroupLabel>
+        <ListGroup>{SECURITY_ROWS.map(renderSwitch)}</ListGroup>
       </View>
 
-      <PrimaryButton
-        label="LOG OUT"
-        variant="secondary"
-        onPress={handleSignOut}
-        style={styles.logout}
-      />
+      <View style={styles.section}>
+        <GroupLabel>Preferences</GroupLabel>
+        <ListGroup>
+          {PREFERENCE_ROWS.map(renderSwitch)}
+          <View style={styles.themeRow}>
+            <Text style={styles.themeLabel}>Appearance</Text>
+            <SegmentedControl<ThemeMode>
+              value={mode}
+              onChange={setMode}
+              options={THEME_OPTIONS}
+            />
+          </View>
+        </ListGroup>
+      </View>
 
-      <Text style={styles.version}>Envelope · v1.0.0</Text>
+      <View style={styles.section}>
+        <GroupLabel>Support</GroupLabel>
+        <ListGroup>
+          <ListRow icon="help" title="Help centre" />
+          <ListRow icon="document" title="Terms & privacy" />
+        </ListGroup>
+      </View>
+
+      <View style={styles.section}>
+        <ListGroup>
+          <ListRow icon="logout" title="Log out" destructive onPress={handleSignOut} />
+        </ListGroup>
+      </View>
+
+      <Text style={styles.version}>Envelope for MTN MoMo · v1.0.0</Text>
     </ScrollView>
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function Stat({ value, label }: { value: number; label: string }) {
   const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.stat}>
@@ -255,198 +225,117 @@ function Stat({ value, label }: { value: string; label: string }) {
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: 30,
-    lineHeight: 38,
-    letterSpacing: -0.8,
-    color: colors.text,
-    marginBottom: spacing.xl,
-  },
-  identity: {
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  avatar: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.md,
-  },
-  avatarText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 24,
-    letterSpacing: 0.6,
-    color: colors.primary,
-  },
-  name: {
-    ...type.sectionTitle,
-    color: colors.text,
-  },
-  email: {
-    ...type.caption,
-    color: colors.textMuted,
-  },
-  walletPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  mtnMark: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primaryMuted,
-  },
-  mtnMarkText: {
-    fontFamily: fontFamily.bold,
-    fontSize: 9,
-    letterSpacing: 0.5,
-    color: colors.primary,
-  },
-  walletText: {
-    ...type.meta,
-    fontFamily: fontFamily.medium,
-    color: colors.textSecondary,
-  },
-  stats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  stat: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statValue: {
-    fontFamily: fontFamily.bold,
-    fontSize: 20,
-    color: colors.text,
-  },
-  statLabel: {
-    ...type.meta,
-    color: colors.textMuted,
-  },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 28,
-    backgroundColor: colors.borderStrong,
-  },
-  section: {
-    marginTop: spacing.xxl,
-  },
-  sectionLabel: {
-    ...type.meta,
-    fontFamily: fontFamily.semibold,
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginBottom: spacing.sm,
-    marginLeft: spacing.xs,
-  },
-  group: {
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.md + 2,
-    paddingHorizontal: spacing.lg,
-    minHeight: 54,
-  },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  segment: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    padding: 3,
-    borderRadius: radius.pill,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  segmentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingVertical: 6,
-    paddingHorizontal: spacing.sm + 2,
-    borderRadius: radius.pill,
-  },
-  segmentItemActive: {
-    backgroundColor: colors.primary,
-  },
-  segmentLabel: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 12,
-    letterSpacing: 0.2,
-    color: colors.textSecondary,
-  },
-  segmentLabelActive: {
-    color: colors.onPrimary,
-  },
-  rowIcon: {
-    width: 30,
-    alignItems: 'center',
-  },
-  rowLabel: {
-    ...type.bodyMedium,
-    fontSize: 15,
-    color: colors.text,
-    flex: 1,
-  },
-  rowTrailing: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  rowValue: {
-    ...type.caption,
-    color: colors.textMuted,
-  },
-  logout: {
-    marginTop: spacing.xxxl,
-  },
-  version: {
-    ...type.meta,
-    color: colors.textMuted,
-    textAlign: 'center',
-    marginTop: spacing.xl,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    identityCard: {
+      padding: 0,
+    },
+    identity: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.lg,
+      padding: spacing.xl,
+    },
+    identityText: {
+      flex: 1,
+      gap: 2,
+    },
+    avatar: {
+      width: 64,
+      height: 64,
+      borderRadius: 32,
+      backgroundColor: colors.ink,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontFamily: fontFamily.semibold,
+      fontSize: 22,
+      color: colors.primary,
+    },
+    name: {
+      ...type.sectionTitle,
+      color: colors.text,
+    },
+    email: {
+      ...type.caption,
+      fontFamily: fontFamily.regular,
+      color: colors.textSecondary,
+    },
+    walletPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+      paddingLeft: 4,
+      paddingRight: spacing.md,
+      paddingVertical: 4,
+      borderRadius: radius.pill,
+      backgroundColor: colors.backgroundSecondary,
+    },
+    mtnMark: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+    },
+    mtnMarkText: {
+      fontFamily: fontFamily.extrabold,
+      fontSize: 9,
+      letterSpacing: 0.4,
+      color: colors.onPrimary,
+    },
+    walletText: {
+      ...type.meta,
+      fontFamily: fontFamily.medium,
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
+    },
+    stats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.lg,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    stat: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 2,
+    },
+    statValue: {
+      ...type.sectionTitle,
+      ...tabularNums,
+      fontFamily: fontFamily.bold,
+      color: colors.text,
+    },
+    statLabel: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
+    statDivider: {
+      width: StyleSheet.hairlineWidth,
+      height: 28,
+      backgroundColor: colors.border,
+    },
+    section: {
+      marginTop: spacing.xxl,
+    },
+    themeRow: {
+      padding: spacing.lg,
+      gap: spacing.md,
+    },
+    themeLabel: {
+      ...type.bodyMedium,
+      color: colors.text,
+    },
+    version: {
+      ...type.meta,
+      color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: spacing.xxl,
+    },
+  });

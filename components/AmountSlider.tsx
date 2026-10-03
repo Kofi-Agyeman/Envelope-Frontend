@@ -3,7 +3,6 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolate,
-  interpolateColor,
   runOnJS,
   useAnimatedStyle,
   useDerivedValue,
@@ -11,12 +10,11 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import { AMOUNT, currency } from '@/constants/config';
 import type { Palette } from '@/constants/theme';
-import { useThemedStyles, useTheme } from '@/store/theme';
+import { useThemedStyles } from '@/store/theme';
 import { radius } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
 
 type Props = {
@@ -28,8 +26,8 @@ type Props = {
   step?: number;
 };
 
-const TRACK_HEIGHT = 12;
-const THUMB_SIZE = 40;
+const TRACK_HEIGHT = 6;
+const THUMB_SIZE = 28;
 
 function clamp(value: number, min: number, max: number) {
   'worklet';
@@ -57,7 +55,6 @@ export function AmountSlider({
   max = AMOUNT.max,
   step = AMOUNT.step,
 }: Props) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const trackWidth = useSharedValue(0);
   const progress = useSharedValue(amountToRatio(value, min, max));
@@ -150,40 +147,20 @@ export function AmountSlider({
     [pan, tapGesture],
   );
 
-  const fillWidth = useDerivedValue(
-    () => interpolate(progress.value, [0, 1], [0, trackWidth.value]),
-    [trackWidth],
-  );
-
   const thumbLeft = useDerivedValue(
     () => interpolate(progress.value, [0, 1], [0, trackWidth.value - THUMB_SIZE]),
     [trackWidth],
   );
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.15, 1], [0.2, 0.5, 0.9]),
-    backgroundColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      [colors.primaryDark, colors.primary],
-    ),
-    transform: [{ scale: interpolate(progress.value, [0, 1], [0.7, 1.15]) }],
-  }));
-
+  // The fill ends under the thumb's centre rather than its leading edge.
   const fillStyle = useAnimatedStyle(() => ({
-    width: fillWidth.value,
+    width: Math.max(0, thumbLeft.value + THUMB_SIZE / 2),
   }));
 
   const knobStyle = useAnimatedStyle(() => ({
     left: thumbLeft.value,
     transform: [
-      { scale: withSpring(isDragging.value ? 1.18 : 1, { damping: 15, stiffness: 220 }) },
-    ],
-  }));
-
-  const coreStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: withSpring(isDragging.value ? 1.25 : 1, { damping: 15, stiffness: 220 }) },
+      { scale: withSpring(isDragging.value ? 1.12 : 1, { damping: 15, stiffness: 220 }) },
     ],
   }));
 
@@ -222,19 +199,9 @@ export function AmountSlider({
           ]}
         >
           <View style={styles.track}>
-            <Animated.View style={[styles.glow, glowStyle]} />
-
-            <Animated.View style={[styles.fill, fillStyle]}>
-              <LinearGradient
-                colors={[colors.primaryDark, colors.primary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.fillGradient}
-              />
-            </Animated.View>
-
+            <Animated.View style={[styles.fill, fillStyle]} />
             <Animated.View style={[styles.knob, knobStyle]}>
-              <Animated.View style={[styles.knobCore, coreStyle]} />
+              <View style={styles.knobCore} />
             </Animated.View>
           </View>
         </Animated.View>
@@ -250,71 +217,56 @@ export function AmountSlider({
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  wrapper: {
-    width: '100%',
-  },
-  hitArea: {
-    paddingVertical: 18,
-    justifyContent: 'center',
-  },
-  track: {
-    height: TRACK_HEIGHT,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    borderWidth: 1,
-    borderColor: colors.border,
-    justifyContent: 'center',
-  },
-  glow: {
-    position: 'absolute',
-    left: -6,
-    top: -7,
-    height: TRACK_HEIGHT + 14,
-    borderRadius: radius.pill,
-    opacity: 0.4,
-  },
-  fill: {
-    position: 'absolute',
-    left: 0,
-    height: TRACK_HEIGHT,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-  },
-  fillGradient: {
-    flex: 1,
-    borderRadius: radius.pill,
-  },
-  knob: {
-    position: 'absolute',
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE,
-    backgroundColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.7,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  knobCore: {
-    width: 12,
-    height: 12,
-    borderRadius: 12,
-    backgroundColor: colors.background,
-    opacity: 0.85,
-  },
-  bounds: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  boundText: {
-    ...type.meta,
-    fontFamily: fontFamily.medium,
-    color: colors.textMuted,
-  },
-});
+    wrapper: {
+      width: '100%',
+    },
+    hitArea: {
+      paddingVertical: 14,
+      justifyContent: 'center',
+    },
+    track: {
+      height: TRACK_HEIGHT,
+      borderRadius: radius.pill,
+      backgroundColor: colors.backgroundSecondary,
+      justifyContent: 'center',
+    },
+    fill: {
+      position: 'absolute',
+      left: 0,
+      height: TRACK_HEIGHT,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primary,
+    },
+    knob: {
+      position: 'absolute',
+      width: THUMB_SIZE,
+      height: THUMB_SIZE,
+      borderRadius: THUMB_SIZE,
+      backgroundColor: '#FFFFFF',
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.08)',
+      shadowColor: '#000',
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 2 },
+      elevation: 4,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    knobCore: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+    },
+    bounds: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    boundText: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
+  });
 
 export default AmountSlider;

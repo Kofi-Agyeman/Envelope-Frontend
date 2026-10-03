@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Field, PasswordToggle } from '@/components/Field';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
+import { LogoMark } from '@/components/Logo';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
@@ -97,35 +98,42 @@ export default function RegisterScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xxl },
+          { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          style={styles.back}
-        >
-          <Icon name="chevronBack" size={20} color={colors.text} />
-        </Pressable>
+        <View style={styles.nav}>
+          <Pressable
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={styles.back}
+          >
+            <Icon name="chevronBack" size={20} color={colors.text} />
+          </Pressable>
+          <LogoMark size={30} />
+          <View style={styles.navSpacer} />
+        </View>
 
-        <Animated.View entering={FadeIn.duration(400)}>
-          <Text style={styles.title}>Create your account</Text>
+        <Animated.View entering={FadeIn.duration(360)} style={styles.headlineBlock}>
+          <Text style={styles.title} accessibilityRole="header">
+            Create your account
+          </Text>
           <Text style={styles.subtitle}>
-            Your MTN MoMo number becomes your Envelope wallet.
+            Your MTN MoMo number becomes your Envelope wallet. It takes under a minute.
           </Text>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(90).duration(460)} style={styles.form}>
+        <Animated.View entering={FadeInDown.delay(80).duration(440)} style={styles.form}>
           <Field
             label="Full name"
             value={fullName}
             onChangeText={setFullName}
             placeholder="Kofi Agyeman"
             autoComplete="name"
+            autoCapitalize="words"
             testID="register-name"
           />
           <Field
@@ -136,6 +144,7 @@ export default function RegisterScreen() {
             keyboardType="phone-pad"
             autoComplete="tel"
             prefix="+233"
+            hint="We never share your number with recipients."
             testID="register-phone"
           />
           <Field
@@ -145,44 +154,45 @@ export default function RegisterScreen() {
             placeholder="you@example.com"
             keyboardType="email-address"
             autoComplete="email"
+            error={emailValid ? null : 'Enter a valid email address.'}
             testID="register-email"
           />
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="At least 6 characters"
-            secureTextEntry={secure}
-            autoComplete="new-password"
-            testID="register-password"
-            accessory={
-              <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
-            }
-          />
 
-          {password.length > 0 ? (
-            <View style={styles.strengthRow}>
-              <View style={styles.strengthBars}>
-                {[0, 1, 2, 3].map((i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.strengthBar,
-                      {
-                        backgroundColor:
-                          i < strength
-                            ? passwordColor(strength, colors)
-                            : colors.border,
-                      },
-                    ]}
-                  />
-                ))}
+          <View style={styles.passwordBlock}>
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="At least 6 characters"
+              secureTextEntry={secure}
+              autoComplete="new-password"
+              testID="register-password"
+              accessory={
+                <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
+              }
+            />
+            {password.length > 0 ? (
+              <View style={styles.strengthRow}>
+                <View style={styles.strengthBars}>
+                  {[0, 1, 2, 3].map((i) => (
+                    <View
+                      key={i}
+                      style={[
+                        styles.strengthBar,
+                        {
+                          backgroundColor:
+                            i < strength ? passwordColor(strength, colors) : colors.border,
+                        },
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Text style={[styles.strengthLabel, { color: passwordColor(strength, colors) }]}>
+                  {PASSWORD_LABELS[strength]}
+                </Text>
               </View>
-              <Text style={[styles.strengthLabel, { color: passwordColor(strength, colors) }]}>
-                {PASSWORD_LABELS[strength]}
-              </Text>
-            </View>
-          ) : null}
+            ) : null}
+          </View>
 
           <Field
             label="Confirm password"
@@ -191,15 +201,9 @@ export default function RegisterScreen() {
             placeholder="Repeat your password"
             secureTextEntry={secure}
             autoComplete="new-password"
+            error={mismatch ? 'Passwords do not match.' : null}
             testID="register-confirm"
           />
-
-          {mismatch ? (
-            <Animated.View entering={FadeIn.duration(180)} style={styles.errorBox}>
-              <Icon name="alert" size={16} color={colors.error} />
-              <Text style={styles.errorText}>Passwords do not match.</Text>
-            </Animated.View>
-          ) : null}
 
           {error ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
@@ -209,13 +213,17 @@ export default function RegisterScreen() {
           ) : null}
 
           <PrimaryButton
-            label="CREATE ACCOUNT"
+            label="Create account"
             onPress={handleSubmit}
             loading={loading}
             loadingLabel="Creating account…"
             disabled={!canSubmit}
             style={styles.submit}
           />
+
+          <Text style={styles.legal}>
+            By continuing you agree to the Envelope Terms of Service and Privacy Policy.
+          </Text>
         </Animated.View>
 
         <View style={styles.footer}>
@@ -233,95 +241,113 @@ export default function RegisterScreen() {
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 480,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  back: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: spacing.xl,
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: 28,
-    lineHeight: 36,
-    letterSpacing: -0.8,
-    color: colors.text,
-  },
-  subtitle: {
-    ...type.caption,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
-  form: {
-    marginTop: spacing.xxxl,
-    gap: spacing.lg,
-  },
-  strengthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: -spacing.sm,
-  },
-  strengthBars: {
-    flexDirection: 'row',
-    gap: spacing.xs + 2,
-    flex: 1,
-    maxWidth: 180,
-  },
-  strengthBar: {
-    flex: 1,
-    height: 3,
-    borderRadius: 3,
-  },
-  strengthLabel: {
-    ...type.meta,
-    fontFamily: fontFamily.semibold,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.errorMuted,
-  },
-  errorText: {
-    ...type.caption,
-    color: colors.error,
-    flexShrink: 1,
-  },
-  submit: {
-    marginTop: spacing.sm,
-  },
-  footer: {
-    marginTop: 'auto',
-    paddingTop: spacing.xxxl,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  footerText: {
-    ...type.caption,
-    color: colors.textMuted,
-  },
-  footerLink: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flexGrow: 1,
+      paddingHorizontal: layout.screenPadding,
+      maxWidth: 440,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    nav: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    navSpacer: {
+      width: 40,
+    },
+    back: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    headlineBlock: {
+      marginTop: spacing.xxxl,
+      gap: spacing.sm,
+    },
+    title: {
+      ...type.display,
+      color: colors.text,
+    },
+    subtitle: {
+      ...type.body,
+      color: colors.textSecondary,
+    },
+    form: {
+      marginTop: spacing.xxxl,
+      gap: spacing.xl,
+    },
+    passwordBlock: {
+      gap: spacing.sm,
+    },
+    strengthRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+    },
+    strengthBars: {
+      flexDirection: 'row',
+      gap: spacing.xs,
+      flex: 1,
+    },
+    strengthBar: {
+      flex: 1,
+      height: 4,
+      borderRadius: 2,
+    },
+    strengthLabel: {
+      ...type.meta,
+      fontFamily: fontFamily.semibold,
+      minWidth: 70,
+      textAlign: 'right',
+    },
+    errorBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.errorMuted,
+    },
+    errorText: {
+      ...type.caption,
+      color: colors.error,
+      flexShrink: 1,
+    },
+    submit: {
+      marginTop: spacing.xs,
+    },
+    legal: {
+      ...type.meta,
+      color: colors.textMuted,
+      textAlign: 'center',
+      marginTop: -spacing.sm,
+    },
+    footer: {
+      marginTop: 'auto',
+      paddingTop: spacing.xxxl,
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: spacing.xs + 2,
+    },
+    footerText: {
+      ...type.caption,
+      fontFamily: fontFamily.regular,
+      color: colors.textSecondary,
+    },
+    footerLink: {
+      ...type.caption,
+      fontFamily: fontFamily.semibold,
+      color: colors.text,
+      textDecorationLine: 'underline',
+    },
+  });

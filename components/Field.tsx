@@ -1,11 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Icon } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
@@ -24,6 +18,10 @@ type Props = {
   /** Replaces the trailing eye toggle. */
   accessory?: React.ReactNode;
   onSubmitEditing?: () => void;
+  /** Inline validation message shown under the input. */
+  error?: string | null;
+  hint?: string;
+  autoCapitalize?: 'none' | 'words';
   testID?: string;
 };
 
@@ -39,6 +37,9 @@ export function Field({
   prefix,
   accessory,
   onSubmitEditing,
+  error,
+  hint,
+  autoCapitalize = 'none',
   testID,
 }: Props) {
   const [focused, setFocused] = useState(false);
@@ -48,8 +49,18 @@ export function Field({
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <View style={[styles.inputWrap, focused && styles.inputWrapFocused]}>
-        {prefix ? <Text style={styles.prefix}>{prefix}</Text> : null}
+      <View
+        style={[
+          styles.inputWrap,
+          focused && styles.inputWrapFocused,
+          error ? styles.inputWrapError : null,
+        ]}
+      >
+        {prefix ? (
+          <View style={styles.prefixWrap}>
+            <Text style={styles.prefix}>{prefix}</Text>
+          </View>
+        ) : null}
         <TextInput
           testID={testID}
           value={value}
@@ -59,7 +70,7 @@ export function Field({
           secureTextEntry={secureTextEntry}
           keyboardType={keyboardType}
           autoComplete={autoComplete}
-          autoCapitalize="none"
+          autoCapitalize={autoCapitalize}
           autoCorrect={false}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -70,6 +81,11 @@ export function Field({
         />
         {accessory}
       </View>
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : hint ? (
+        <Text style={styles.hint}>{hint}</Text>
+      ) : null}
     </View>
   );
 }
@@ -97,40 +113,57 @@ export function PasswordToggle({
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  field: {
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    ...type.meta,
-    fontFamily: fontFamily.semibold,
-    color: colors.textSecondary,
-    letterSpacing: 0.3,
-  },
-  inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    height: 54,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  inputWrapFocused: {
-    borderColor: colors.primary,
-  },
-  prefix: {
-    ...type.bodyMedium,
-    color: colors.textMuted,
-  },
-  input: {
-    flex: 1,
-    ...type.body,
-    fontSize: 16,
-    color: colors.text,
-padding: 0,
-  },
+    field: {
+      gap: 6,
+    },
+    fieldLabel: {
+      ...type.caption,
+      color: colors.text,
+    },
+    inputWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      height: 50,
+      paddingHorizontal: spacing.md + 2,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+    },
+    inputWrapFocused: {
+      borderColor: colors.text,
+    },
+    inputWrapError: {
+      borderColor: colors.error,
+    },
+    prefixWrap: {
+      paddingRight: spacing.md,
+      borderRightWidth: 1,
+      borderRightColor: colors.border,
+      alignSelf: 'stretch',
+      justifyContent: 'center',
+    },
+    prefix: {
+      ...type.bodyMedium,
+      color: colors.textSecondary,
+    },
+    input: {
+      flex: 1,
+      ...type.body,
+      fontSize: 16,
+      color: colors.text,
+      padding: 0,
+      height: '100%',
+    },
+    error: {
+      ...type.meta,
+      color: colors.error,
+    },
+    hint: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
   });
 
 export default Field;

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   FadeIn,
+  FadeInDown,
   useDerivedValue,
   useSharedValue,
   withSequence,
@@ -12,12 +13,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { Glow } from '@/components/Glow';
+import { Icon } from '@/components/Icon';
+import { MoneySafetyNote } from '@/components/MoneySafetyNote';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { layout, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
-import { formatAmountCompact } from '@/utils/format';
+import { layout, radius, spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
+import { formatMoney } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
@@ -84,7 +87,7 @@ export default function CreateEnvelopeScreen() {
         duration: 420,
         easing: Easing.out(Easing.back(2)),
       });
-      aura.value = withTiming(0.6, { duration: 460 });
+      aura.value = withTiming(0.45, { duration: 460 });
       setPhase('ready');
     } catch (e) {
       if (!mounted.current) return;
@@ -105,15 +108,8 @@ export default function CreateEnvelopeScreen() {
     return () => clearTimeout(timer);
   }, [attempt, runCreation]);
 
-  const auraScale = useDerivedValue(
-    () => 0.8 + aura.value * 0.35,
-    [aura],
-  );
-
-  const auraOpacity = useDerivedValue(
-    () => aura.value,
-    [aura],
-  );
+  const auraScale = useDerivedValue(() => 0.8 + aura.value * 0.35, [aura]);
+  const auraOpacity = useDerivedValue(() => aura.value, [aura]);
 
   const handleShare = useCallback(() => {
     const envelope = created.current;
@@ -122,128 +118,204 @@ export default function CreateEnvelopeScreen() {
     router.replace(`/envelope/${envelope.id}`);
   }, [router]);
 
+  const envelope = created.current;
+
   return (
     <View
       style={[
         styles.screen,
         {
           paddingTop: insets.top + spacing.xxxl,
-          paddingBottom: insets.bottom + spacing.xxl,
+          paddingBottom: insets.bottom + spacing.xl,
         },
       ]}
     >
       <View style={styles.center}>
         <View style={styles.envelopeStage}>
           <Glow
-            size={340}
-            color={colors.primary}
-            intensity={0.7}
+            size={320}
+            color={phase === 'error' ? colors.error : colors.primary}
+            intensity={0.5}
             opacity={auraOpacity}
             scale={auraScale}
             style={styles.aura}
           />
           <DigitalEnvelope
-            size={200}
-            state={phase === 'ready' ? 'completed' : 'creating'}
-            intensity={0.92}
+            size={180}
+            state={phase === 'ready' ? 'completed' : phase === 'error' ? 'failed' : 'creating'}
+            intensity={0.8}
             sealed={phase === 'ready'}
           />
         </View>
 
         {phase === 'creating' ? (
           <Animated.View entering={FadeIn.duration(240)} style={styles.copy}>
-            <Text style={styles.title}>Creating your Envelope</Text>
+            <Text style={styles.eyebrow}>Please wait</Text>
+            <Text style={styles.title}>Sealing your envelope</Text>
             <Text style={styles.subtitle}>
-              Sealing {formatAmountCompact(amount)} so it is ready to share.
+              Preparing a private link for {formatMoney(amount)}.
             </Text>
           </Animated.View>
         ) : null}
 
         {phase === 'ready' ? (
           <Animated.View entering={FadeIn.duration(300)} style={styles.copy}>
-            <Text style={styles.title}>Envelope created</Text>
-            <Text style={styles.amount}>{formatAmountCompact(amount)}</Text>
-            <Text style={styles.subtitle}>Ready to share.</Text>
-            <View style={styles.actionWrap}>
-              <PrimaryButton
-                label="SHARE ENVELOPE"
-                onPress={handleShare}
-                accessibilityHint="Opens the envelope so you can copy or share its link"
-              />
+            <View style={styles.successPill}>
+              <Icon name="checkCircle" size={14} color={colors.success} />
+              <Text style={styles.successText}>Envelope created</Text>
             </View>
+            <Text style={styles.amount}>{formatMoney(amount)}</Text>
+            <Text style={styles.subtitle}>
+              Share the link with anyone. They choose where the money lands.
+            </Text>
+
+            {envelope ? (
+              <Animated.View entering={FadeInDown.delay(120).duration(360)} style={styles.linkCard}>
+                <Icon name="link" size={16} color={colors.textMuted} />
+                <Text style={styles.linkText} numberOfLines={1}>
+                  {envelope.shareUrl.replace(/^https?:\/\//, '')}
+                </Text>
+                <Text style={styles.codeText}>{envelope.code}</Text>
+              </Animated.View>
+            ) : null}
           </Animated.View>
         ) : null}
 
         {phase === 'error' ? (
           <Animated.View entering={FadeIn.duration(260)} style={styles.copy}>
+            <Text style={[styles.eyebrow, { color: colors.error }]}>Not created</Text>
             <Text style={styles.title}>Something went wrong</Text>
             <Text style={styles.subtitle}>{error}</Text>
-            <View style={styles.actionWrap}>
-              <PrimaryButton
-                label="TRY AGAIN"
-                onPress={() => setAttempt((a) => a + 1)}
-              />
-              <PrimaryButton
-                label="Back to home"
-                variant="ghost"
-                onPress={() => router.replace('/(tabs)')}
-              />
-            </View>
           </Animated.View>
         ) : null}
       </View>
+
+      {phase === 'ready' ? (
+        <Animated.View entering={FadeIn.delay(160).duration(300)} style={styles.actions}>
+          <PrimaryButton
+            label="Share envelope"
+            onPress={handleShare}
+            icon={<Icon name="share" size={18} color={colors.onPrimary} strokeWidth={2.1} />}
+            accessibilityHint="Opens the envelope so you can copy or share its link"
+          />
+          <PrimaryButton
+            label="Back to home"
+            variant="ghost"
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </Animated.View>
+      ) : null}
+
+      {phase === 'error' ? (
+        <Animated.View entering={FadeIn.duration(260)} style={styles.actions}>
+          <PrimaryButton label="Try again" onPress={() => setAttempt((a) => a + 1)} />
+          <PrimaryButton
+            label="Back to home"
+            variant="ghost"
+            onPress={() => router.replace('/(tabs)')}
+          />
+        </Animated.View>
+      ) : null}
+
+      {phase === 'creating' ? (
+        <View style={styles.actions}>
+          <MoneySafetyNote />
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  envelopeStage: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xxxl,
-  },
-  aura: {
-    top: -70,
-  },
-  copy: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    width: '100%',
-  },
-  title: {
-    ...type.sectionTitle,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  amount: {
-    fontFamily: fontFamily.extrabold,
-    fontSize: 30,
-    lineHeight: 36,
-    letterSpacing: -0.8,
-    color: colors.primary,
-  },
-  subtitle: {
-    ...type.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  actionWrap: {
-    alignSelf: 'stretch',
-    marginTop: spacing.xxxl,
-    gap: spacing.sm,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: layout.screenPadding,
+      maxWidth: 480,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    envelopeStage: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: spacing.huge,
+    },
+    aura: {
+      top: -90,
+    },
+    copy: {
+      alignItems: 'center',
+      gap: spacing.sm,
+      width: '100%',
+    },
+    eyebrow: {
+      ...type.overline,
+      color: colors.textMuted,
+      textTransform: 'uppercase',
+    },
+    title: {
+      ...type.title,
+      color: colors.text,
+      textAlign: 'center',
+    },
+    successPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: colors.successMuted,
+    },
+    successText: {
+      ...type.caption,
+      fontFamily: fontFamily.semibold,
+      color: colors.success,
+    },
+    amount: {
+      ...type.numeric,
+      ...tabularNums,
+      color: colors.text,
+      marginTop: spacing.xs,
+    },
+    subtitle: {
+      ...type.body,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      maxWidth: 320,
+    },
+    linkCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'stretch',
+      gap: spacing.sm,
+      marginTop: spacing.lg,
+      paddingHorizontal: spacing.lg,
+      height: 48,
+      borderRadius: radius.md,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    linkText: {
+      ...type.caption,
+      fontFamily: fontFamily.regular,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    codeText: {
+      ...type.meta,
+      fontFamily: fontFamily.semibold,
+      letterSpacing: 0.6,
+      color: colors.text,
+    },
+    actions: {
+      gap: spacing.xs,
+    },
+  });

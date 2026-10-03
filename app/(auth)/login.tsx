@@ -13,7 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Field, PasswordToggle } from '@/components/Field';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
+import { Logo } from '@/components/Logo';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
 import { layout, radius, spacing } from '@/constants/layout';
@@ -77,28 +78,25 @@ export default function LoginScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.content,
-          { paddingTop: insets.top + spacing.huge, paddingBottom: insets.bottom + spacing.xxl },
+          { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-                <Animated.View entering={FadeInDown.duration(420)}>
-          <Text style={styles.wordmark}>ENVELOPE</Text>
+        <Animated.View entering={FadeIn.duration(360)}>
+          <Logo size={34} />
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(80).duration(460)}
-          style={styles.headlineBlock}
-        >
-          <Text style={styles.headline}>
-            Money, without the awkward{'\n'}&quot;What&apos;s your number?&quot;
+        <Animated.View entering={FadeInDown.delay(60).duration(420)} style={styles.headlineBlock}>
+          <Text style={styles.headline} accessibilityRole="header">
+            Welcome back
           </Text>
           <Text style={styles.subhead}>
-            Create an Envelope, share the link, and let them choose where it lands.
+            Sign in to send money with a link. No recipient number needed.
           </Text>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(160).duration(460)} style={styles.form}>
+        <Animated.View entering={FadeInDown.delay(120).duration(440)} style={styles.form}>
           <Field
             label="Phone number"
             value={phone}
@@ -110,19 +108,29 @@ export default function LoginScreen() {
             testID="login-phone"
           />
 
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Your password"
-            secureTextEntry={secure}
-            autoComplete="password"
-            onSubmitEditing={handleSubmit}
-            testID="login-password"
-            accessory={
-              <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
-            }
-          />
+          <View>
+            <Field
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter your password"
+              secureTextEntry={secure}
+              autoComplete="password"
+              onSubmitEditing={handleSubmit}
+              testID="login-password"
+              accessory={
+                <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
+              }
+            />
+            <Pressable
+              onPress={() => setError('Password reset will be available once your account is linked to MTN MoMo.')}
+              accessibilityRole="button"
+              hitSlop={8}
+              style={styles.forgot}
+            >
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          </View>
 
           {error ? (
             <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
@@ -132,12 +140,11 @@ export default function LoginScreen() {
           ) : null}
 
           <PrimaryButton
-            label="LOG IN"
+            label="Log in"
             onPress={handleSubmit}
             loading={loading}
             loadingLabel="Signing in…"
             disabled={!canSubmit}
-            style={styles.submit}
             accessibilityHint="Signs in to your Envelope account"
           />
 
@@ -145,30 +152,31 @@ export default function LoginScreen() {
             <Pressable
               onPress={useDemo}
               accessibilityRole="button"
-              style={styles.demoButton}
+              style={({ pressed }) => [styles.demoButton, pressed && { opacity: 0.8 }]}
             >
+              <Icon name="spark" size={14} color={colors.accent} />
               <Text style={styles.demoText}>
                 Use demo account · {demoCredentials.masked}
               </Text>
             </Pressable>
           ) : null}
-
-          <Pressable
-            onPress={() => setError('Password reset will be available once your account is linked to MTN MoMo.')}
-            accessibilityRole="button"
-            style={styles.forgot}
-          >
-            <Text style={styles.forgotText}>Forgot password?</Text>
-          </Pressable>
         </Animated.View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>New to Envelope?</Text>
-          <Link href="/(auth)/register" asChild>
-            <Pressable accessibilityRole="link" hitSlop={8}>
-              <Text style={styles.footerLink}>Create an account</Text>
-            </Pressable>
-          </Link>
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>New to Envelope?</Text>
+            <Link href="/(auth)/register" asChild>
+              <Pressable accessibilityRole="link" hitSlop={8}>
+                <Text style={styles.footerLink}>Create an account</Text>
+              </Pressable>
+            </Link>
+          </View>
+          <View style={styles.trust}>
+            <Icon name="shield" size={14} color={colors.textMuted} />
+            <Text style={styles.trustText}>
+              Payments are settled through MTN Mobile Money.
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -177,92 +185,99 @@ export default function LoginScreen() {
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flexGrow: 1,
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 480,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  wordmark: {
-    fontFamily: fontFamily.extrabold,
-    fontSize: 15,
-    letterSpacing: 4,
-    color: colors.primary,
-  },
-  headlineBlock: {
-    marginTop: spacing.xxl,
-    gap: spacing.md,
-  },
-  headline: {
-    fontFamily: fontFamily.bold,
-    fontSize: 30,
-    lineHeight: 38,
-    letterSpacing: -0.9,
-    color: colors.text,
-  },
-  subhead: {
-    ...type.body,
-    color: colors.textSecondary,
-  },
-  form: {
-    marginTop: spacing.xxxl,
-    gap: spacing.lg,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.errorMuted,
-  },
-  errorText: {
-    ...type.caption,
-    color: colors.error,
-    flexShrink: 1,
-  },
-  submit: {
-    marginTop: spacing.sm,
-  },
-  demoButton: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryFaint,
-  },
-  demoText: {
-    ...type.meta,
-    fontFamily: fontFamily.medium,
-    color: colors.primary,
-  },
-  forgot: {
-    alignSelf: 'center',
-    paddingVertical: spacing.sm,
-  },
-  forgotText: {
-    ...type.caption,
-    color: colors.textSecondary,
-  },
-  footer: {
-    marginTop: 'auto',
-    paddingTop: spacing.xxxl,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  footerText: {
-    ...type.caption,
-    color: colors.textMuted,
-  },
-  footerLink: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flexGrow: 1,
+      paddingHorizontal: layout.screenPadding,
+      maxWidth: 440,
+      width: '100%',
+      alignSelf: 'center',
+    },
+    headlineBlock: {
+      marginTop: spacing.huge,
+      gap: spacing.sm,
+    },
+    headline: {
+      ...type.display,
+      color: colors.text,
+    },
+    subhead: {
+      ...type.body,
+      color: colors.textSecondary,
+    },
+    form: {
+      marginTop: spacing.xxxl,
+      gap: spacing.xl,
+    },
+    forgot: {
+      alignSelf: 'flex-end',
+      marginTop: spacing.sm,
+    },
+    forgotText: {
+      ...type.caption,
+      fontFamily: fontFamily.semibold,
+      color: colors.textSecondary,
+    },
+    errorBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      padding: spacing.md,
+      borderRadius: radius.md,
+      backgroundColor: colors.errorMuted,
+    },
+    errorText: {
+      ...type.caption,
+      color: colors.error,
+      flexShrink: 1,
+    },
+    demoButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.sm,
+      height: 44,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: colors.borderStrong,
+      marginTop: -spacing.sm,
+    },
+    demoText: {
+      ...type.caption,
+      color: colors.textSecondary,
+    },
+    footer: {
+      marginTop: 'auto',
+      paddingTop: spacing.huge,
+      gap: spacing.lg,
+      alignItems: 'center',
+    },
+    footerRow: {
+      flexDirection: 'row',
+      gap: spacing.xs + 2,
+    },
+    footerText: {
+      ...type.caption,
+      fontFamily: fontFamily.regular,
+      color: colors.textSecondary,
+    },
+    footerLink: {
+      ...type.caption,
+      fontFamily: fontFamily.semibold,
+      color: colors.text,
+      textDecorationLine: 'underline',
+    },
+    trust: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    trustText: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
+  });

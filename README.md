@@ -69,6 +69,8 @@ app/
     └── [id].tsx          Share link + lifecycle timeline
 
 components/
+├── ui.tsx                Card, ListGroup/ListRow, SegmentedControl, headers, EmptyState
+├── Logo.tsx              Brand mark + wordmark
 ├── DigitalEnvelope.tsx   Reusable SVG envelope, all lifecycle states
 ├── Glow.tsx              Radial-gradient halo behind the envelope
 ├── AmountSlider.tsx      Gesture-driven slider with haptics
@@ -247,8 +249,17 @@ Changing the slider range or presets needs no other edits.
 
 ## Design notes
 
-- Dark-first, with MTN yellow used only as an accent — buttons, values, slider
-  fill, envelope glow. Everything else is neutral dark and white.
+- Neutral surfaces carry the interface; MTN yellow is reserved for the primary
+  action on a screen and for brand marks. `colors.primary` is a fill colour;
+  yellow used as text or an icon goes through `colors.accent`, which is
+  darkened in light mode for contrast.
+- Screens are built from the primitives in `components/ui.tsx` (cards, grouped
+  lists, segmented controls, section headers) so spacing, radii and hierarchy
+  stay consistent. Lists are grouped rows with inset dividers, not stacks of
+  floating cards.
+- Buttons use sentence case and solid fills. Money uses tabular figures
+  (`tabularNums`) so amounts do not jitter while the slider moves.
+- The wallet card is always the dark `ink` surface, in both themes.
 - The envelope is the visual identity. It is one reusable SVG component
   (`DigitalEnvelope`) that reacts to amount intensity and to lifecycle status
   (glow, pulse, seal, checkmark, red failure accent).

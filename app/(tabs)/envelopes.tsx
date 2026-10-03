@@ -2,26 +2,27 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
 import { EnvelopeCard } from '@/components/EnvelopeCard';
 import { SkeletonCard } from '@/components/Skeleton';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
+import {
+  Card,
+  EmptyState,
+  ListGroup,
+  ScreenHeader,
+  SegmentedControl,
+  screenContent,
+} from '@/components/ui';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { layout, radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { radius, spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
 import { formatMoney } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useData } from '@/store/data';
 import type { Envelope } from '@/types';
 
 type Filter = 'all' | 'active' | 'completed';
-
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'active', label: 'Active' },
-  { key: 'completed', label: 'Completed' },
-];
 
 const ACTIVE_STATUSES: Envelope['status'][] = [
   'waiting',
@@ -56,172 +57,177 @@ export default function EnvelopesScreen() {
     };
   }, [envelopes]);
 
+  const goCreate = () => router.push('/(tabs)');
+
   return (
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.xl, paddingBottom: insets.bottom + 108 },
+        screenContent,
+        { paddingTop: insets.top + spacing.xl, paddingBottom: spacing.xxxl },
       ]}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>My Envelopes</Text>
-      <Text style={styles.subtitle}>
-        {totals.activeCount > 0
-          ? `${formatMoney(totals.activeValue)} waiting to be claimed`
-          : 'Everything has been claimed'}
-      </Text>
+      <ScreenHeader
+        title="Envelopes"
+        subtitle="Every link you have shared and where it stands."
+        trailing={
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              goCreate();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Create an envelope"
+            style={({ pressed }) => [styles.newButton, pressed && { opacity: 0.85 }]}
+          >
+            <Icon name="plus" size={18} color={colors.onPrimary} strokeWidth={2.4} />
+          </Pressable>
+        }
+      />
 
-      <View style={styles.filters}>
-        {FILTERS.map((item) => {
-          const active = filter === item.key;
-          return (
-            <Pressable
-              key={item.key}
-              onPress={() => {
-                haptics.light();
-                setFilter(item.key);
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              style={[styles.pill, active && styles.pillActive]}
-            >
-              {active ? (
-                <Animated.View entering={FadeIn.duration(160)} style={styles.pillLabelWrap}>
-                  <Text style={styles.pillLabelActive}>{item.label}</Text>
-                </Animated.View>
-              ) : (
-                <Text style={styles.pillLabel}>{item.label}</Text>
-              )}
-            </Pressable>
-          );
-        })}
-      </View>
+      <Card style={styles.summary}>
+        <Text style={styles.summaryLabel}>Outstanding</Text>
+        <Text style={styles.summaryValue} numberOfLines={1} adjustsFontSizeToFit>
+          {formatMoney(totals.activeValue)}
+        </Text>
+        <Text style={styles.summaryMeta}>
+          {totals.activeCount > 0
+            ? 'Still in your wallet until each envelope is claimed.'
+            : 'Nothing waiting to be claimed.'}
+        </Text>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryRow}>
+          <SummaryStat label="Active" value={totals.activeCount} dot={colors.primary} />
+          <SummaryStat label="Completed" value={totals.completedCount} dot={colors.success} />
+          <SummaryStat label="Total" value={envelopes.length} dot={colors.textMuted} />
+        </View>
+      </Card>
 
-      <View style={styles.list}>
-        {loadingEnvelopes && envelopes.length === 0 ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Icon name="envelope" size={24} color={colors.textMuted} />
-            <Text style={styles.emptyText}>
-              {filter === 'all'
-                ? 'You have not created any envelopes yet.'
-                : `No ${filter} envelopes right now.`}
-            </Text>
-            <Pressable
-              onPress={() => router.push('/(tabs)')}
-              accessibilityRole="button"
-              style={styles.emptyCta}
-            >
-              <Text style={styles.emptyCtaText}>Create an envelope</Text>
-            </Pressable>
-          </View>
-        ) : (
-          filtered.map((envelope, index) => (
+      <SegmentedControl<Filter>
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { value: 'all', label: 'All' },
+          { value: 'active', label: 'Active' },
+          { value: 'completed', label: 'Completed' },
+        ]}
+        style={styles.filters}
+      />
+
+      {loadingEnvelopes && envelopes.length === 0 ? (
+        <ListGroup>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ListGroup>
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="envelope"
+          title={filter === 'all' ? 'No envelopes yet' : `No ${filter} envelopes`}
+          body={
+            filter === 'all'
+              ? 'Create an envelope and share its link. The money only moves once someone claims it.'
+              : 'Envelopes will show up here as their status changes.'
+          }
+          actionLabel="Create an envelope"
+          onAction={goCreate}
+        />
+      ) : (
+        <ListGroup>
+          {filtered.map((envelope) => (
             <EnvelopeCard
               key={envelope.id}
               envelope={envelope}
-              index={index}
               onPress={() => router.push(`/envelope/${envelope.id}`)}
             />
-          ))
-        )}
-      </View>
+          ))}
+        </ListGroup>
+      )}
     </ScrollView>
+  );
+}
+
+function SummaryStat({ label, value, dot }: { label: string; value: number; dot: string }) {
+  const styles = useThemedStyles(createStyles);
+  return (
+    <View style={styles.summaryStat}>
+      <View style={styles.summaryStatHead}>
+        <View style={[styles.summaryDot, { backgroundColor: dot }]} />
+        <Text style={styles.summaryStatLabel}>{label}</Text>
+      </View>
+      <Text style={styles.summaryStatValue}>{value}</Text>
+    </View>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  title: {
-    fontFamily: fontFamily.bold,
-    fontSize: 30,
-    lineHeight: 38,
-    letterSpacing: -0.8,
-    color: colors.text,
-  },
-  subtitle: {
-    ...type.caption,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  filters: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.xl,
-    marginBottom: spacing.xl,
-  },
-  pill: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm + 1,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  pillLabelWrap: {
-    alignItems: 'center',
-  },
-  pillLabel: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  pillLabelActive: {
-    fontFamily: fontFamily.semibold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.onPrimary,
-  },
-  list: {
-    gap: spacing.md,
-  },
-  empty: {
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.huge,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    ...type.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  emptyCta: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryFaint,
-  },
-  emptyCtaText: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    newButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    summary: {
+      padding: spacing.xl,
+    },
+    summaryLabel: {
+      ...type.caption,
+      color: colors.textSecondary,
+    },
+    summaryValue: {
+      ...type.amount,
+      ...tabularNums,
+      color: colors.text,
+      marginTop: spacing.xs,
+    },
+    summaryMeta: {
+      ...type.meta,
+      color: colors.textMuted,
+      marginTop: spacing.xs,
+    },
+    summaryDivider: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginVertical: spacing.lg,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+    },
+    summaryStat: {
+      flex: 1,
+      gap: 2,
+    },
+    summaryStatHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    summaryDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    summaryStatLabel: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
+    summaryStatValue: {
+      ...type.sectionTitle,
+      ...tabularNums,
+      fontFamily: fontFamily.bold,
+      color: colors.text,
+    },
+    filters: {
+      marginTop: spacing.xl,
+      marginBottom: spacing.lg,
+    },
+  });

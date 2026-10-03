@@ -1,24 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Animated as RNAnimated,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
 import { currency } from '@/constants/config';
-import { radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
 
 type Props = {
@@ -46,7 +33,6 @@ export function AmountDisplay({ value, onCommit, min, max }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const inputRef = useRef<TextInput>(null);
-  const scale = useSharedValue(1);
 
   useEffect(() => {
     if (!editing) setDraft('');
@@ -71,10 +57,6 @@ export function AmountDisplay({ value, onCommit, min, max }: Props) {
     }
   }, [draft, max, min, onCommit, value]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
   const formatted = value % 1 === 0 ? value.toLocaleString('en-US') : value.toFixed(2);
 
   return (
@@ -86,7 +68,7 @@ export function AmountDisplay({ value, onCommit, min, max }: Props) {
       hitSlop={8}
       style={styles.pressable}
     >
-      <Animated.View style={[styles.row, animatedStyle]}>
+      <View style={styles.row}>
         <Text style={styles.currency}>{currency.code}</Text>
 
         {editing ? (
@@ -108,71 +90,65 @@ export function AmountDisplay({ value, onCommit, min, max }: Props) {
             />
           </Animated.View>
         ) : (
-          <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)}>
-            <RNAnimated.Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-              {formatted}
-            </RNAnimated.Text>
-          </Animated.View>
-        )}
-      </Animated.View>
-
-      <View style={styles.hintRow}>
-        <View style={styles.hintPill}>
-          <Text style={styles.hintText}>
-            {editing ? 'Tap done to confirm' : 'Tap the amount to type'}
+          <Text
+            style={styles.value}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {formatted}
           </Text>
-        </View>
+        )}
       </View>
+
+      <Text style={styles.hintText}>
+        {editing ? 'Press return to confirm' : 'Tap amount to edit'}
+      </Text>
     </Pressable>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  pressable: {
-    alignItems: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    minHeight: 66,
-  },
-  currency: {
-    ...type.heroAmount,
-    color: colors.primary,
-    marginTop: 8,
-  },
-  value: {
-    ...type.heroAmount,
-    color: colors.text,
-  },
-  input: {
-    ...type.heroAmount,
-    color: colors.text,
-    padding: 0,
-    paddingVertical: 0,
-    minWidth: 120,
-    textAlign: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
-  },
-  hintRow: {
-    marginTop: spacing.xs,
-    alignItems: 'center',
-  },
-  hintPill: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-  },
-  hintText: {
-    ...type.meta,
-    fontFamily: fontFamily.medium,
-    color: colors.textMuted,
-  },
-});
+    pressable: {
+      alignItems: 'center',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      gap: 6,
+      minHeight: 56,
+    },
+    currency: {
+      fontFamily: fontFamily.semibold,
+      fontSize: 20,
+      lineHeight: 24,
+      color: colors.textMuted,
+      marginTop: 9,
+    },
+    value: {
+      ...type.heroAmount,
+      ...tabularNums,
+      color: colors.text,
+    },
+    input: {
+      ...type.heroAmount,
+      ...tabularNums,
+      color: colors.text,
+      padding: 0,
+      paddingVertical: 0,
+      minWidth: 110,
+      maxWidth: 200,
+      textAlign: 'center',
+      borderBottomWidth: 2,
+      borderBottomColor: colors.primary,
+    },
+    hintText: {
+      ...type.meta,
+      color: colors.textMuted,
+      marginTop: spacing.xs,
+    },
+  });
 
 export default AmountDisplay;

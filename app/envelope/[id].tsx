@@ -16,14 +16,14 @@ import * as Clipboard from 'expo-clipboard';
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { StatusBadge, statusDescription } from '@/components/StatusBadge';
-import { Icon, type IconName } from '@/components/Icon';
+import { Icon } from '@/components/Icon';
+import { Card, EmptyState, GroupLabel, ListGroup, ListRow, screenContent } from '@/components/ui';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { layout, radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { radius, spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
 import {
   countdownLabel,
-  formatAmountCompact,
   formatDateLong,
   formatMoney,
   formatTime,
@@ -35,7 +35,6 @@ import type { Envelope, EnvelopeStatus } from '@/types';
 type Stage = {
   key: string;
   label: string;
-  detail?: string;
 };
 
 const STAGES: Stage[] = [
@@ -113,16 +112,43 @@ export default function EnvelopeDetailScreen() {
     }
   }, [envelope]);
 
+  const goBack = () =>
+    router.canGoBack() ? router.back() : router.replace('/(tabs)/envelopes');
+
+  const nav = (
+    <View style={styles.navRow}>
+      <Pressable
+        onPress={goBack}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+        style={styles.iconButton}
+      >
+        <Icon name="chevronBack" size={20} color={colors.text} />
+      </Pressable>
+      <Text style={styles.navTitle}>Envelope details</Text>
+      <View style={styles.navSpacer} />
+    </View>
+  );
+
   if (!envelope) {
     return (
-      <View style={[styles.screen, styles.centered, { paddingTop: insets.top }]}>
-        <Text style={styles.notFoundTitle}>Envelope not found</Text>
-        <PrimaryButton
-          label="BACK TO ENVELOPES"
-          variant="secondary"
-          onPress={() => router.replace('/(tabs)/envelopes')}
-          style={styles.centeredAction}
-        />
+      <View style={[styles.screen, { paddingTop: insets.top + spacing.md }]}>
+        <View style={screenContent}>
+          {nav}
+          <View style={styles.notFound}>
+            <EmptyState
+              icon="envelope"
+              title="Envelope not found"
+              body="It may have been removed, or the link is no longer valid."
+            />
+            <PrimaryButton
+              label="Back to envelopes"
+              variant="secondary"
+              onPress={() => router.replace('/(tabs)/envelopes')}
+            />
+          </View>
+        </View>
       </View>
     );
   }
@@ -135,86 +161,84 @@ export default function EnvelopeDetailScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <ScrollView
         contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + 120 },
+          screenContent,
+          { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.huge },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.navRow}>
-          <Pressable
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/envelopes'))}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={styles.iconButton}
-          >
-            <Icon name="chevronBack" size={20} color={colors.text} />
-          </Pressable>
-          <Text style={styles.navTitle}>Envelope</Text>
-          <View style={styles.iconButton} />
-        </View>
+        {nav}
 
-        <Animated.View entering={FadeIn.duration(420)} style={styles.hero}>
-          <DigitalEnvelope
-            size={190}
-            state={envelopeState(envelope)}
-            intensity={0.85}
-            sealed={envelope.status === 'completed'}
-          />
-        </Animated.View>
-
-        <Animated.View entering={FadeIn.delay(80).duration(400)} style={styles.summary}>
-          <Text style={styles.amount}>{formatMoney(envelope.amount)}</Text>
-          <StatusBadge status={envelope.status} style={styles.badge} />
-          <Text style={styles.statusText}>
-            {statusDescription[envelope.status]}
-          </Text>
-          {isLive ? (
-            <View style={styles.countdownPill}>
-              <Icon name="clock" size={13} color={colors.primary} />
-              <Text style={styles.countdownText}>
-                {countdownLabel(envelope.expiresAt)}
-              </Text>
+        <Animated.View entering={FadeIn.duration(360)}>
+          <Card style={styles.hero}>
+            <DigitalEnvelope
+              size={148}
+              state={envelopeState(envelope)}
+              intensity={0.6}
+              sealed={envelope.status !== 'expired' && envelope.status !== 'failed'}
+            />
+            <Text style={styles.amount}>{formatMoney(envelope.amount)}</Text>
+            <View style={styles.badgeRow}>
+              <StatusBadge status={envelope.status} />
+              {isLive ? (
+                <View style={styles.countdownPill}>
+                  <Icon name="clock" size={12} color={colors.textSecondary} />
+                  <Text style={styles.countdownText}>
+                    {countdownLabel(envelope.expiresAt)}
+                  </Text>
+                </View>
+              ) : null}
             </View>
-          ) : null}
+            <Text style={styles.statusText}>{statusDescription[envelope.status]}</Text>
+          </Card>
         </Animated.View>
 
         {envelope.status === 'waiting' ? (
-          <Animated.View entering={FadeIn.delay(140).duration(420)} style={styles.shareBlock}>
-            <View style={styles.linkRow}>
-              <Text style={styles.linkText} numberOfLines={1}>
-                {envelope.shareUrl.replace(/^https?:\/\//, '')}
+          <Animated.View entering={FadeIn.delay(80).duration(380)} style={styles.section}>
+            <GroupLabel>Claim link</GroupLabel>
+            <Card>
+              <View style={styles.linkRow}>
+                <Icon name="link" size={16} color={colors.textMuted} />
+                <Text style={styles.linkText} numberOfLines={1}>
+                  {envelope.shareUrl.replace(/^https?:\/\//, '')}
+                </Text>
+                <Pressable
+                  onPress={handleCopy}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={copied ? 'Link copied' : 'Copy envelope link'}
+                  style={({ pressed }) => [
+                    styles.copyButton,
+                    copied && styles.copyButtonDone,
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Icon
+                    name={copied ? 'check' : 'copy'}
+                    size={14}
+                    color={copied ? colors.success : colors.text}
+                  />
+                  <Text style={[styles.copyText, copied && { color: colors.success }]}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </Text>
+                </Pressable>
+              </View>
+              <Text style={styles.linkHint}>
+                Anyone with this link can claim the envelope. Share it only with the person
+                you are paying.
               </Text>
-              <Pressable
-                onPress={handleCopy}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel={copied ? 'Link copied' : 'Copy envelope link'}
-                style={[styles.copyButton, copied && styles.copyButtonDone]}
-              >
-                <Icon
-                  name={copied ? 'check' : 'copy'}
-                  size={16}
-                  color={copied ? colors.success : colors.primary}
-                />
-              </Pressable>
-            </View>
-            <Text style={styles.copiedLabel}>
-              {copied ? '✓ Link copied' : 'Recipient claims this link in their own app'}
-            </Text>
-
-            <PrimaryButton
-              label="SHARE ENVELOPE"
-              onPress={handleShare}
-              icon={<Icon name="share" size={18} color={colors.onPrimary} />}
-              style={styles.shareButton}
-            />
+              <PrimaryButton
+                label="Share envelope"
+                onPress={handleShare}
+                icon={<Icon name="share" size={18} color={colors.onPrimary} strokeWidth={2.1} />}
+                style={styles.shareButton}
+              />
+            </Card>
           </Animated.View>
         ) : null}
 
-        <Animated.View entering={FadeIn.delay(200).duration(420)} style={styles.timelineBlock}>
-          <Text style={styles.timelineTitle}>Progress</Text>
-          <View style={styles.timeline}>
+        <Animated.View entering={FadeIn.delay(140).duration(380)} style={styles.section}>
+          <GroupLabel>Progress</GroupLabel>
+          <Card style={styles.timelineCard}>
             {STAGES.map((stage, index) => {
               const stageIndex = index;
               const done = stageIndex < currentStage;
@@ -226,12 +250,13 @@ export default function EnvelopeDetailScreen() {
               const terminalBlocked =
                 (envelope.status === 'expired' || envelope.status === 'failed') &&
                 stageIndex > currentStage;
+              const completedFinal = active && envelope.status === 'completed';
 
               const dotColor = failed
                 ? colors.error
                 : expiredHere
                   ? colors.textMuted
-                  : done
+                  : done || completedFinal
                     ? colors.success
                     : active
                       ? colors.primary
@@ -243,6 +268,8 @@ export default function EnvelopeDetailScreen() {
                   ? colors.text
                   : colors.textMuted;
 
+              const filled = done || active || failed || expiredHere;
+
               return (
                 <View key={stage.key} style={styles.timelineRow}>
                   <View style={styles.timelineRail}>
@@ -250,11 +277,13 @@ export default function EnvelopeDetailScreen() {
                       style={[
                         styles.timelineDot,
                         { borderColor: dotColor },
-                        (done || active) && { backgroundColor: dotColor },
-                        failed && { backgroundColor: colors.error },
-                        expiredHere && { backgroundColor: colors.textMuted },
+                        filled && { backgroundColor: dotColor },
                       ]}
-                    />
+                    >
+                      {done || completedFinal ? (
+                        <Icon name="check" size={10} color="#FFFFFF" strokeWidth={3} />
+                      ) : null}
+                    </View>
                     {index < STAGES.length - 1 ? (
                       <View
                         style={[
@@ -266,13 +295,19 @@ export default function EnvelopeDetailScreen() {
                   </View>
 
                   <View style={styles.timelineCopy}>
-                    <Text style={[styles.timelineLabel, { color: labelColor }]}>
+                    <Text
+                      style={[
+                        styles.timelineLabel,
+                        { color: labelColor },
+                        active && styles.timelineLabelActive,
+                      ]}
+                    >
                       {stage.label}
                     </Text>
                     {active && !failed && !expiredHere ? (
                       <Text style={styles.timelineMeta}>
-                        {stageIndex === 0
-                          ? formatDateLong(envelope.createdAt)
+                        {completedFinal && envelope.completedAt
+                          ? `${formatDateLong(envelope.completedAt)} · ${formatTime(envelope.completedAt)}`
                           : 'In progress'}
                       </Text>
                     ) : null}
@@ -282,9 +317,7 @@ export default function EnvelopeDetailScreen() {
                           ? `${formatDateLong(envelope.createdAt)} · ${formatTime(envelope.createdAt)}`
                           : stage.key === 'claimed' && envelope.claimedAt
                             ? formatTime(envelope.claimedAt)
-                            : stage.key === 'completed' && envelope.completedAt
-                              ? formatTime(envelope.completedAt)
-                              : 'Done'}
+                            : 'Done'}
                       </Text>
                     ) : null}
                     {failed ? (
@@ -301,250 +334,201 @@ export default function EnvelopeDetailScreen() {
                 </View>
               );
             })}
-          </View>
+          </Card>
         </Animated.View>
 
-        <Animated.View entering={FadeIn.delay(260).duration(420)} style={styles.metaBlock}>
-          <MetaRow label="Envelope code" value={envelope.code} />
-          <MetaRow
-            label="Created"
-            value={`${formatDateLong(envelope.createdAt)} · ${formatTime(envelope.createdAt)}`}
-          />
-          <MetaRow
-            label="Expires"
-            value={`${formatDateLong(envelope.expiresAt)} · ${formatTime(envelope.expiresAt)}`}
-          />
-          {envelope.recipientName || envelope.recipientPhone ? (
-            <MetaRow
-              label="Recipient"
-              value={
-                envelope.recipientName ??
-                (envelope.recipientPhone
-                  ? envelope.recipientPhone.replace(/^(\+?\d{3})\d+/, '$1 ••••')
-                  : '—')
-              }
+        <Animated.View entering={FadeIn.delay(200).duration(380)} style={styles.section}>
+          <GroupLabel>Details</GroupLabel>
+          <ListGroup>
+            <ListRow title="Envelope code" value={envelope.code} />
+            <ListRow
+              title="Created"
+              value={`${formatDateLong(envelope.createdAt)} · ${formatTime(envelope.createdAt)}`}
             />
-          ) : null}
+            <ListRow
+              title="Expires"
+              value={`${formatDateLong(envelope.expiresAt)} · ${formatTime(envelope.expiresAt)}`}
+            />
+            {envelope.recipientName || envelope.recipientPhone ? (
+              <ListRow
+                title="Recipient"
+                value={
+                  envelope.recipientName ??
+                  (envelope.recipientPhone
+                    ? envelope.recipientPhone.replace(/^(\+?\d{3})\d+/, '$1 ••••')
+                    : '—')
+                }
+              />
+            ) : null}
+          </ListGroup>
         </Animated.View>
       </ScrollView>
     </View>
   );
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
-  const styles = useThemedStyles(createStyles);
-  return (
-    <View style={styles.metaRow}>
-      <Text style={styles.metaLabel}>{label}</Text>
-      <Text style={styles.metaValue}>{value}</Text>
-    </View>
-  );
-}
-
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: layout.screenPadding,
-    gap: spacing.lg,
-  },
-  centeredAction: {
-    alignSelf: 'stretch',
-  },
-  notFoundTitle: {
-    ...type.sectionTitle,
-    color: colors.text,
-  },
-  content: {
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  navRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  navTitle: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.text,
-  },
-  iconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  hero: {
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-  },
-  summary: {
-    alignItems: 'center',
-    marginTop: spacing.xxl,
-    gap: spacing.sm,
-  },
-  amount: {
-    ...type.numeric,
-    fontSize: 40,
-    lineHeight: 46,
-    color: colors.text,
-  },
-  badge: {
-    marginTop: spacing.xs,
-  },
-  statusText: {
-    ...type.bodyMedium,
-    color: colors.textSecondary,
-  },
-  countdownPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primaryFaint,
-  },
-  countdownText: {
-    ...type.meta,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-  },
-  shareBlock: {
-    marginTop: spacing.xxl,
-    padding: spacing.xl,
-    borderRadius: radius.xxl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.backgroundSecondary,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingLeft: spacing.lg,
-    paddingRight: spacing.sm,
-    paddingVertical: spacing.md,
-  },
-  linkText: {
-    flex: 1,
-    fontFamily: fontFamily.medium,
-    fontSize: 15,
-    color: colors.text,
-  },
-  copyButton: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primaryFaint,
-  },
-  copyButtonDone: {
-    backgroundColor: colors.success,
-  },
-  copiedLabel: {
-    ...type.meta,
-    color: colors.textMuted,
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
-  shareButton: {
-    marginTop: spacing.lg,
-  },
-  timelineBlock: {
-    marginTop: spacing.xxxl,
-  },
-  timelineTitle: {
-    ...type.sectionTitle,
-    color: colors.text,
-    marginBottom: spacing.lg,
-  },
-  timeline: {
-    gap: 0,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-  },
-  timelineRail: {
-    alignItems: 'center',
-    width: 14,
-  },
-  timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    marginTop: 3,
-  },
-  timelineLine: {
-    flex: 1,
-    width: 2,
-    backgroundColor: colors.border,
-    marginVertical: 4,
-  },
-  timelineLineDone: {
-    backgroundColor: colors.success,
-  },
-  timelineCopy: {
-    flex: 1,
-    paddingBottom: spacing.xl,
-  },
-  timelineLabel: {
-    ...type.bodyMedium,
-    fontSize: 15,
-  },
-  timelineMeta: {
-    ...type.meta,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  metaBlock: {
-    marginTop: spacing.lg,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.xs,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.lg,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  metaLabel: {
-    ...type.meta,
-    fontFamily: fontFamily.medium,
-    color: colors.textMuted,
-  },
-  metaValue: {
-    ...type.meta,
-    fontFamily: fontFamily.semibold,
-    color: colors.text,
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    notFound: {
+      gap: spacing.lg,
+    },
+    navRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: spacing.xl,
+    },
+    navTitle: {
+      ...type.cardTitle,
+      color: colors.text,
+    },
+    navSpacer: {
+      width: 40,
+    },
+    iconButton: {
+      width: 40,
+      height: 40,
+      borderRadius: radius.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    hero: {
+      alignItems: 'center',
+      paddingTop: spacing.xxxl,
+      paddingBottom: spacing.xxl,
+    },
+    amount: {
+      ...type.numeric,
+      ...tabularNums,
+      color: colors.text,
+      marginTop: spacing.xl,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    countdownPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: spacing.sm + 2,
+      paddingVertical: 5,
+      borderRadius: radius.pill,
+      backgroundColor: colors.backgroundSecondary,
+    },
+    countdownText: {
+      ...type.meta,
+      fontFamily: fontFamily.semibold,
+      color: colors.textSecondary,
+    },
+    statusText: {
+      ...type.caption,
+      fontFamily: fontFamily.regular,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
+    },
+    section: {
+      marginTop: spacing.xxl,
+    },
+    linkRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      backgroundColor: colors.backgroundSecondary,
+      borderRadius: radius.md,
+      paddingLeft: spacing.md,
+      paddingRight: 6,
+      height: 48,
+    },
+    linkText: {
+      flex: 1,
+      ...type.caption,
+      fontFamily: fontFamily.medium,
+      color: colors.text,
+    },
+    copyButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      height: 36,
+      paddingHorizontal: spacing.md,
+      borderRadius: radius.sm,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    copyButtonDone: {
+      backgroundColor: colors.successMuted,
+      borderColor: 'transparent',
+    },
+    copyText: {
+      ...type.meta,
+      fontFamily: fontFamily.semibold,
+      color: colors.text,
+    },
+    linkHint: {
+      ...type.meta,
+      color: colors.textMuted,
+      marginTop: spacing.md,
+    },
+    shareButton: {
+      marginTop: spacing.lg,
+    },
+    timelineCard: {
+      paddingVertical: spacing.xl,
+      paddingHorizontal: spacing.lg,
+    },
+    timelineRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    timelineRail: {
+      alignItems: 'center',
+      width: 20,
+    },
+    timelineDot: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 2,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    timelineLine: {
+      flex: 1,
+      width: 2,
+      minHeight: 18,
+      backgroundColor: colors.border,
+      marginVertical: 3,
+    },
+    timelineLineDone: {
+      backgroundColor: colors.success,
+    },
+    timelineCopy: {
+      flex: 1,
+      paddingBottom: spacing.lg,
+      paddingTop: 1,
+    },
+    timelineLabel: {
+      ...type.bodyMedium,
+      fontSize: 14,
+      lineHeight: 18,
+    },
+    timelineLabelActive: {
+      fontFamily: fontFamily.semibold,
+    },
+    timelineMeta: {
+      ...type.meta,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+  });

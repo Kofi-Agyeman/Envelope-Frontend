@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -13,13 +13,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle,
   Defs,
   LinearGradient as SvgLinearGradient,
   Path,
   Rect,
   Stop,
 } from 'react-native-svg';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Glow } from '@/components/Glow';
 import type { Palette, StatusKey } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
@@ -42,9 +42,9 @@ export type EnvelopeVisualStatus =
 type Props = {
   size?: number;
   state?: EnvelopeVisualState;
-  /** 0..1 — drives scale, glow intensity and accent weight. */
+  /** 0..1 — drives glow intensity. */
   intensity?: number;
-  /** Renders the wax seal. */
+  /** Renders the wax seal on the flap. */
   sealed?: boolean;
   /** Renders the checkmark badge for completed envelopes. */
   showCheck?: boolean;
@@ -59,6 +59,11 @@ const STATUS_FOR_STATE: Partial<Record<EnvelopeVisualState, StatusKey>> = {
   expired: 'expired',
 };
 
+/**
+ * The Envelope illustration. A flat, front-facing envelope: body, V-shaped
+ * top flap, side folds and an optional seal, with a soft status-coloured
+ * halo behind it. All proportions derive from `size` so it scales cleanly.
+ */
 export function DigitalEnvelope({
   size = 168,
   state = 'idle',
@@ -66,14 +71,15 @@ export function DigitalEnvelope({
   sealed = false,
   showCheck,
 }: Props) {
-  const { colors, statusColors, gradients } = useTheme();
+  const { colors, statusColors, gradients, scheme } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const ids = useId().replace(/:/g, '');
   const status = STATUS_FOR_STATE[state];
   const accent = status ? statusColors[status].fg : colors.primary;
 
   const lift = useSharedValue(0);
   const pulse = useSharedValue(0);
-  const glow = useSharedValue(0.25 + intensity * 0.35);
+  const glow = useSharedValue(0.2 + intensity * 0.3);
   const checkScale = useSharedValue(0);
 
   const isCreating = state === 'creating';
@@ -84,16 +90,16 @@ export function DigitalEnvelope({
     if (isCreating) {
       lift.value = withSequence(
         withSpring(1, { damping: 14, stiffness: 160 }),
-        withSpring(1.22, { damping: 10, stiffness: 200 }),
-        withSpring(1.12, { damping: 12, stiffness: 170 }),
+        withSpring(1.2, { damping: 10, stiffness: 200 }),
+        withSpring(1.1, { damping: 12, stiffness: 170 }),
       );
       if (reduceMotion) {
-        glow.value = withTiming(0.8, { duration: 200 });
+        glow.value = withTiming(0.7, { duration: 200 });
       } else {
         glow.value = withRepeat(
           withSequence(
-            withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) }),
-            withTiming(0.4, { duration: 420, easing: Easing.in(Easing.quad) }),
+            withTiming(0.9, { duration: 420, easing: Easing.out(Easing.quad) }),
+            withTiming(0.35, { duration: 460, easing: Easing.in(Easing.quad) }),
           ),
           -1,
           true,
@@ -101,7 +107,7 @@ export function DigitalEnvelope({
       }
     } else {
       lift.value = withSpring(0, { damping: 16, stiffness: 180 });
-      glow.value = 0.25 + intensity * 0.35;
+      glow.value = withTiming(0.2 + intensity * 0.3, { duration: 240 });
     }
     return () => {
       cancelAnimation(lift);
@@ -117,8 +123,8 @@ export function DigitalEnvelope({
     if (status === 'processing' || status === 'claimed') {
       pulse.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 900, easing: Easing.inOut(Easing.quad) }),
-          withTiming(0, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 1000, easing: Easing.inOut(Easing.quad) }),
         ),
         -1,
         false,
@@ -131,39 +137,24 @@ export function DigitalEnvelope({
 
   useEffect(() => {
     const shouldShow = showCheck ?? isDone;
-    if (shouldShow) {
-      checkScale.value = withSpring(1, { damping: 13, stiffness: 190 });
-    } else {
-      checkScale.value = withTiming(0, { duration: 160 });
-    }
+    checkScale.value = shouldShow
+      ? withSpring(1, { damping: 13, stiffness: 190 })
+      : withTiming(0, { duration: 160 });
   }, [checkScale, isDone, showCheck]);
 
   const containerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: interpolate(lift.value, [0, 1.22], [0, -14]) }],
+    transform: [{ translateY: interpolate(lift.value, [0, 1.2], [0, -10]) }],
   }));
 
   const auraOpacity = useDerivedValue(
-    () => Math.min(1, glow.value * 0.85 + pulse.value * 0.35),
+    () => Math.min(1, glow.value * 0.9 + pulse.value * 0.3),
     [glow, pulse],
   );
 
   const auraScale = useDerivedValue(
-    () => 0.78 + glow.value * 0.3 + pulse.value * 0.16,
+    () => 0.8 + glow.value * 0.25 + pulse.value * 0.12,
     [glow, pulse],
   );
-
-  const pulseRingStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(pulse.value, [0, 1], [0.5, 0]),
-    transform: [{ scale: interpolate(pulse.value, [0, 1], [0.75, 1.35]) }],
-  }));
-
-  const sealStyle = useAnimatedStyle(() => {
-    const progress = sealed ? 1 : 0;
-    return {
-      opacity: progress,
-      transform: [{ scale: 0.4 + progress * 0.6 }],
-    };
-  });
 
   const checkStyle = useAnimatedStyle(() => ({
     opacity: checkScale.value,
@@ -171,156 +162,112 @@ export function DigitalEnvelope({
   }));
 
   const flapStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateY: interpolate(lift.value, [0, 1.2], [0, -size * 0.045]),
-      },
-    ],
+    transform: [{ translateY: interpolate(lift.value, [0, 1.2], [0, -size * 0.02]) }],
   }));
 
-  const intensityScale = 1 + intensity * 0.05;
-  const bodyWidth = size;
-  const bodyHeight = size * 0.68;
-
-  const bodyStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: intensityScale * (1 + lift.value * 0.06) },
-    ],
-  }));
-
-  const glowSize = size * 1.9;
-  const glowTop = (size * 0.92 - glowSize) / 2;
+  const w = size;
+  const h = size * 0.66;
+  const r = size * 0.06;
+  const inset = 1;
+  const flapTip = h * 0.56;
+  const stroke = scheme === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(18,21,28,0.10)';
+  const fold = scheme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(18,21,28,0.06)';
+  const sealR = size * 0.085;
+  const glowSize = size * 1.8;
+  const muted = status === 'expired' || status === 'failed';
 
   return (
     <Animated.View
-      style={[styles.wrapper, { width: size, height: size * 0.92 }, containerStyle]}
+      style={[styles.wrapper, { width: w, height: h + size * 0.12 }, containerStyle]}
     >
       <Glow
         size={glowSize}
         color={accent}
-        intensity={0.62}
+        intensity={muted ? 0.25 : 0.45}
         opacity={auraOpacity}
         scale={auraScale}
-        style={[styles.aura, { top: glowTop }]}
+        style={[styles.aura, { top: (h - glowSize) / 2 }]}
       />
 
-      {status === 'processing' || status === 'claimed' ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.pulseRing,
-            {
-              width: size * 1.1,
-              height: size * 0.85,
-              borderRadius: size,
-              borderColor: accent,
-            },
-            pulseRingStyle,
-          ]}
-        />
-      ) : null}
-
-<Animated.View style={[styles.bodyWrap, { width: bodyWidth }, bodyStyle]}>
-        {/* Base body — a single flat SVG layer. */}
-        <Svg
-          width={bodyWidth}
-          height={bodyHeight + size * 0.09}
-          viewBox={`0 0 ${bodyWidth} ${bodyHeight + size * 0.09}`}
-        >
+      <View
+        style={[
+          styles.body,
+          { width: w, height: h, borderRadius: r },
+          scheme === 'dark' ? styles.bodyShadowDark : styles.bodyShadowLight,
+        ]}
+      >
+        <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
           <Defs>
-            <SvgLinearGradient id="envBody" x1="0" y1="0" x2="1" y2="1">
+            <SvgLinearGradient id={`b${ids}`} x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor={gradients.envelopeBody[0]} />
               <Stop offset="1" stopColor={gradients.envelopeBody[1]} />
             </SvgLinearGradient>
           </Defs>
-
           <Rect
-            x={2}
-            y={6}
-            width={bodyWidth - 4}
-            height={bodyHeight}
-            rx={size * 0.07}
-            ry={size * 0.07}
-            fill="url(#envBody)"
-            stroke={colors.borderStrong}
-            strokeWidth={1}
+            x={inset / 2}
+            y={inset / 2}
+            width={w - inset}
+            height={h - inset}
+            rx={r}
+            fill={`url(#b${ids})`}
+            stroke={stroke}
+            strokeWidth={inset}
           />
+          {/* Lower folds meeting under the flap. */}
+          <Path d={`M ${r * 0.6} ${h - r * 0.6} L ${w / 2} ${h * 0.5}`} stroke={fold} strokeWidth={1.2} />
+          <Path d={`M ${w - r * 0.6} ${h - r * 0.6} L ${w / 2} ${h * 0.5}`} stroke={fold} strokeWidth={1.2} />
         </Svg>
 
-        {/* Flap — animates independently of the body, so it is a sibling layer. */}
-        <Animated.View style={[styles.flap, flapStyle]} pointerEvents="none">
-          <Svg
-            width={bodyWidth}
-            height={bodyHeight}
-            viewBox={`0 0 ${bodyWidth} ${bodyHeight}`}
-          >
+        <Animated.View style={[StyleSheet.absoluteFill, flapStyle]} pointerEvents="none">
+          <Svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
             <Defs>
-              <SvgLinearGradient id="envFlap" x1="0.5" y1="0" x2="0.5" y2="1">
+              <SvgLinearGradient id={`f${ids}`} x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor={gradients.envelopeFlap[0]} />
                 <Stop offset="1" stopColor={gradients.envelopeFlap[1]} />
               </SvgLinearGradient>
             </Defs>
-
             <Path
-              d={`M ${size * 0.06} ${bodyHeight + 2}
-                  L ${bodyWidth / 2} ${bodyHeight * 0.28}
-                  L ${bodyWidth - size * 0.06} ${bodyHeight + 2} Z`}
-              fill="url(#envFlap)"
-              stroke={colors.borderStrong}
+              d={`M ${r} ${inset}
+                  L ${w - r} ${inset}
+                  Q ${w - inset} ${inset} ${w - r * 0.5} ${r * 0.9}
+                  L ${w / 2 + r * 0.6} ${flapTip - r * 0.35}
+                  Q ${w / 2} ${flapTip + r * 0.15} ${w / 2 - r * 0.6} ${flapTip - r * 0.35}
+                  L ${r * 0.5} ${r * 0.9}
+                  Q ${inset} ${inset} ${r} ${inset} Z`}
+              fill={`url(#f${ids})`}
+              stroke={stroke}
               strokeWidth={1}
+              strokeLinejoin="round"
             />
-            <Path
-              d={`M ${size * 0.1} ${bodyHeight + 1}
-                  L ${bodyWidth / 2} ${bodyHeight * 0.4}`}
-              stroke={colors.border}
-              strokeWidth={1}
-            />
-            <Path
-              d={`M ${bodyWidth - size * 0.1} ${bodyHeight + 1}
-                  L ${bodyWidth / 2} ${bodyHeight * 0.4}`}
-              stroke={colors.border}
-              strokeWidth={1}
-            />
+            {sealed ? (
+              <>
+                <Circle cx={w / 2} cy={flapTip - sealR * 0.35} r={sealR} fill={colors.primary} />
+                <Circle
+                  cx={w / 2}
+                  cy={flapTip - sealR * 0.35}
+                  r={sealR * 0.62}
+                  fill="none"
+                  stroke={colors.primaryDark}
+                  strokeWidth={1.2}
+                />
+              </>
+            ) : null}
           </Svg>
         </Animated.View>
 
-        {/* Accent rule — weight tracks the selected amount. */}
-        <View
-          pointerEvents="none"
-          style={[styles.accentRule, { top: bodyHeight * 0.62 }]}
-        >
+        {/* Status line along the bottom edge. */}
+        {status ? (
           <View
-            style={{
-              width: bodyWidth * (0.24 + intensity * 0.2),
-              height: 3,
-              borderRadius: 3,
-              overflow: 'hidden',
-              opacity: 0.3 + intensity * 0.5,
-            }}
-          >
-            <LinearGradient
-              colors={[accent + '00', accent, accent + '00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.accentRuleGradient}
-            />
-          </View>
-        </View>
-
-        {sealed ? (
-          <Animated.View
             pointerEvents="none"
             style={[
-              styles.seal,
+              styles.statusLine,
               {
-                width: size * 0.19,
-                height: size * 0.19,
-                borderRadius: size,
-                top: bodyHeight * 0.42 - size * 0.095,
-                left: bodyWidth / 2 - size * 0.095,
-                backgroundColor: gradients.envelopeSeal[0],
+                left: w * 0.36,
+                right: w * 0.36,
+                bottom: h * 0.12,
+                backgroundColor: accent,
+                opacity: muted ? 0.5 : 0.9,
               },
-              sealStyle,
             ]}
           />
         ) : null}
@@ -330,21 +277,22 @@ export function DigitalEnvelope({
             style={[
               styles.check,
               {
-                width: size * 0.3,
-                height: size * 0.3,
+                width: size * 0.24,
+                height: size * 0.24,
                 borderRadius: size,
-                right: -size * 0.04,
-                bottom: bodyHeight * 0.02,
+                right: -size * 0.05,
+                bottom: -size * 0.05,
                 backgroundColor: colors.success,
+                borderColor: colors.background,
               },
               checkStyle,
             ]}
           >
-            <Svg width={size * 0.3} height={size * 0.3} viewBox="0 0 24 24">
+            <Svg width={size * 0.14} height={size * 0.14} viewBox="0 0 24 24">
               <Path
                 d="M5 12.5 L10 17.5 L19 7.5"
-                stroke="#06210F"
-                strokeWidth={2.6}
+                stroke="#FFFFFF"
+                strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 fill="none"
@@ -352,79 +300,48 @@ export function DigitalEnvelope({
             </Svg>
           </Animated.View>
         ) : null}
-      </Animated.View>
-
-      <View
-        pointerEvents="none"
-        style={[
-          styles.groundShadow,
-          {
-            width: bodyWidth * 0.72,
-            height: size * 0.05,
-            borderRadius: size,
-            opacity: 0.5 - intensity * 0.18,
-          },
-        ]}
-      />
+      </View>
     </Animated.View>
   );
 }
 
-const createStyles = (colors: Palette) =>
+const createStyles = (_colors: Palette) =>
   StyleSheet.create({
-  wrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aura: {
-    position: 'absolute',
-    alignSelf: 'center',
-  },
-  pulseRing: {
-    position: 'absolute',
-    borderWidth: 1.5,
-  },
-  bodyWrap: {
-    alignItems: 'center',
-  },
-  flap: {
-    position: 'absolute',
-    top: 6,
-    left: 0,
-  },
-  accentRule: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  accentRuleGradient: {
-    flex: 1,
-    borderRadius: 3,
-  },
-  seal: {
-    position: 'absolute',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 6,
-  },
-  check: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: colors.success,
-    shadowOpacity: 0.5,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  groundShadow: {
-    position: 'absolute',
-    bottom: 0,
-    backgroundColor: '#000',
-  },
-});
+    wrapper: {
+      alignItems: 'center',
+    },
+    aura: {
+      position: 'absolute',
+      alignSelf: 'center',
+    },
+    body: {
+      overflow: 'visible',
+    },
+    bodyShadowLight: {
+      shadowColor: '#12151C',
+      shadowOpacity: 0.12,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 6,
+    },
+    bodyShadowDark: {
+      shadowColor: '#000',
+      shadowOpacity: 0.5,
+      shadowRadius: 20,
+      shadowOffset: { width: 0, height: 12 },
+      elevation: 8,
+    },
+    statusLine: {
+      position: 'absolute',
+      height: 3,
+      borderRadius: 2,
+    },
+    check: {
+      position: 'absolute',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 3,
+    },
+  });
 
 export default DigitalEnvelope;

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import type { Palette } from '@/constants/theme';
-import { useThemedStyles, useTheme } from '@/store/theme';
+import { useThemedStyles } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
@@ -25,7 +25,7 @@ export function Skeleton({
   width = '100%',
   height = 14,
   style,
-  radiusOverride = radius.sm,
+  radiusOverride = radius.sm - 2,
 }: Props) {
   const styles = useThemedStyles(createStyles);
   const shimmer = useSharedValue(0);
@@ -48,18 +48,14 @@ export function Skeleton({
   }, [reduceMotion, shimmer]);
 
   const animatedStyle = useAnimatedStyle(() => ({
-    opacity: 0.35 + shimmer.value * 0.45,
+    opacity: 0.5 + shimmer.value * 0.5,
   }));
 
   return (
     <Animated.View
       style={[
         styles.base,
-        {
-          width,
-          height,
-          borderRadius: radiusOverride,
-        },
+        { width, height, borderRadius: radiusOverride },
         animatedStyle,
         style,
       ]}
@@ -72,43 +68,44 @@ type CardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-/** Skeleton shaped like an envelope row. */
+/** Skeleton shaped like an envelope row; place inside a `ListGroup`. */
 export function SkeletonCard({ style }: CardProps) {
   const styles = useThemedStyles(createStyles);
   return (
-    <View style={[styles.card, style]}>
-      <Skeleton width={40} height={40} radiusOverride={radius.md} />
-      <View style={styles.cardBody}>
-        <Skeleton width={72} height={15} />
-        <Skeleton width={128} height={11} style={styles.cardMeta} />
+    <View style={[styles.row, style]}>
+      <Skeleton width={40} height={40} radiusOverride={12} />
+      <View style={styles.rowBody}>
+        <Skeleton width={120} height={13} />
+        <Skeleton width={72} height={10} />
       </View>
-      <Skeleton width={64} height={20} radiusOverride={radius.pill} />
+      <View style={styles.rowTrailing}>
+        <Skeleton width={70} height={13} />
+        <Skeleton width={48} height={10} />
+      </View>
     </View>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  base: {
-    backgroundColor: colors.border,
-  },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardBody: {
-    flex: 1,
-    gap: spacing.sm,
-  },
-  cardMeta: {
-    marginTop: 0,
-  },
-});
+    base: {
+      backgroundColor: colors.backgroundSecondary,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md + 2,
+    },
+    rowBody: {
+      flex: 1,
+      gap: spacing.sm,
+    },
+    rowTrailing: {
+      alignItems: 'flex-end',
+      gap: spacing.sm,
+    },
+  });
 
 export default Skeleton;

@@ -1,19 +1,20 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { Icon, type IconName } from '@/components/Icon';
-import { radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
+import { IconTile } from '@/components/ui';
+import type { IconName } from '@/components/Icon';
+import { spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { formatAmountCompact, relativeTime } from '@/utils/format';
+import { formatMoney, relativeTime } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
-import { StatusBadge, statusDescription } from './StatusBadge';
+import { statusDescription, statusLabel } from './StatusBadge';
 import type { Envelope } from '@/types';
 
 type Props = {
   envelope: Envelope;
   onPress?: (envelope: Envelope) => void;
+  /** Kept for API compatibility; rows no longer stagger in. */
   index?: number;
   compact?: boolean;
 };
@@ -27,85 +28,84 @@ const iconForStatus: Record<Envelope['status'], IconName> = {
   failed: 'alert',
 };
 
-export function EnvelopeCard({ envelope, onPress, index = 0, compact }: Props) {
+/**
+ * A transaction-style row: status icon, envelope code and age on the left,
+ * amount and status on the right. Designed to sit inside a `ListGroup`.
+ */
+export function EnvelopeCard({ envelope, onPress, compact }: Props) {
   const { statusColors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const palette = statusColors[envelope.status];
+  const muted = envelope.status === 'expired' || envelope.status === 'failed';
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).duration(380)}>
-      <Pressable
-        onPress={() => {
-          haptics.light();
-          onPress?.(envelope);
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={`${formatAmountCompact(envelope.amount)}, ${statusDescription[envelope.status]}`}
-        accessibilityHint="Opens envelope details"
-        style={({ pressed }) => [
-          styles.card,
-          compact && styles.cardCompact,
-          pressed && styles.cardPressed,
-        ]}
-      >
-        <View style={[styles.iconWrap, { backgroundColor: palette.bg }]}>
-          <Icon name={iconForStatus[envelope.status]} size={18} color={palette.fg} />
-        </View>
+    <Pressable
+      onPress={() => {
+        haptics.light();
+        onPress?.(envelope);
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={`${formatMoney(envelope.amount)}, ${statusDescription[envelope.status]}`}
+      accessibilityHint="Opens envelope details"
+      style={({ pressed }) => [styles.row, compact && styles.rowCompact, pressed && styles.rowPressed]}
+    >
+      <IconTile
+        icon={iconForStatus[envelope.status]}
+        size={40}
+        color={palette.fg}
+        background={palette.bg}
+      />
 
-        <View style={styles.body}>
-          <Text style={styles.amount} numberOfLines={1}>
-            {formatAmountCompact(envelope.amount)}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            {compact
-              ? statusDescription[envelope.status]
-              : `Created ${relativeTime(envelope.createdAt)} · ${statusDescription[envelope.status]}`}
-          </Text>
-        </View>
+      <View style={styles.body}>
+        <Text style={styles.title} numberOfLines={1}>
+          Envelope <Text style={styles.code}>· {envelope.code}</Text>
+        </Text>
+        <Text style={styles.meta} numberOfLines={1}>
+          {envelope.recipientName
+            ? `To ${envelope.recipientName} · ${relativeTime(envelope.createdAt)}`
+            : relativeTime(envelope.createdAt)}
+        </Text>
+      </View>
 
-        <View style={styles.trailing}>
-          <StatusBadge status={envelope.status} size="sm" />
-          <Text style={styles.code}>{envelope.code}</Text>
-        </View>
-      </Pressable>
-    </Animated.View>
+      <View style={styles.trailing}>
+        <Text style={[styles.amount, muted && styles.amountMuted]} numberOfLines={1}>
+          {formatMoney(envelope.amount)}
+        </Text>
+        <Text style={[styles.status, { color: palette.fg }]}>
+          {statusLabel[envelope.status]}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-    card: {
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: spacing.md,
-      padding: spacing.lg,
-      borderRadius: radius.xl,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md + 2,
     },
-    cardCompact: {
-      padding: spacing.lg - 2,
+    rowCompact: {
+      paddingVertical: spacing.md,
     },
-    cardPressed: {
-      backgroundColor: colors.surfaceElevated,
-      borderColor: colors.borderStrong,
-    },
-    iconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: radius.md,
-      alignItems: 'center',
-      justifyContent: 'center',
+    rowPressed: {
+      backgroundColor: colors.surfaceMuted,
     },
     body: {
       flex: 1,
       gap: 2,
     },
-    amount: {
+    title: {
       ...type.cardTitle,
-      fontFamily: fontFamily.bold,
       color: colors.text,
+    },
+    code: {
+      fontFamily: fontFamily.medium,
+      color: colors.textMuted,
+      letterSpacing: 0.4,
     },
     meta: {
       ...type.meta,
@@ -113,13 +113,21 @@ const createStyles = (colors: Palette) =>
     },
     trailing: {
       alignItems: 'flex-end',
-      gap: 5,
+      gap: 2,
     },
-    code: {
-      fontFamily: fontFamily.medium,
-      fontSize: 11,
-      letterSpacing: 0.6,
+    amount: {
+      ...type.cardTitle,
+      ...tabularNums,
+      color: colors.text,
+    },
+    amountMuted: {
       color: colors.textMuted,
+      textDecorationLine: 'line-through',
+    },
+    status: {
+      fontFamily: fontFamily.medium,
+      fontSize: 12,
+      lineHeight: 16,
     },
   });
 

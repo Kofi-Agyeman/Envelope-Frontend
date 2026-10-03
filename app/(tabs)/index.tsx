@@ -1,51 +1,57 @@
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmountSlider } from '@/components/AmountSlider';
 import { AmountDisplay } from '@/components/AmountDisplay';
 import { BalanceCard } from '@/components/BalanceCard';
-import { DigitalEnvelope } from '@/components/DigitalEnvelope';
 import { EnvelopeCard } from '@/components/EnvelopeCard';
 import { PresetChips } from '@/components/PresetChips';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import { QuickAction } from '@/components/QuickAction';
 import { SkeletonCard } from '@/components/Skeleton';
-import { HeroLabel, HeroShell, MoneySafetyNote } from '@/components/MoneySafetyNote';
+import { HeroShell, MoneySafetyNote } from '@/components/MoneySafetyNote';
+import { Icon } from '@/components/Icon';
+import {
+  Card,
+  EmptyState,
+  IconTile,
+  ListGroup,
+  SectionHeader,
+  screenContent,
+} from '@/components/ui';
 import { AMOUNT } from '@/constants/config';
-import { Icon, type IconName } from '@/components/Icon';
 import type { Palette } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
-import { layout, radius, spacing } from '@/constants/layout';
-import { fontFamily, type } from '@/constants/typography';
-import { firstName, greetingForHour } from '@/utils/format';
+import { spacing } from '@/constants/layout';
+import { fontFamily, tabularNums, type } from '@/constants/typography';
+import { firstName, formatMoney, greetingForHour } from '@/utils/format';
 import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
+import type { Envelope } from '@/types';
+
+const OPEN_STATUSES: Envelope['status'][] = ['waiting', 'claimed', 'processing'];
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { profile, preferences, setPreference } = useAuth();
   const { balance, envelopes, loadingBalance, loadingEnvelopes } = useData();
   const [amount, setAmount] = useState(100);
 
-  const contentWidth = Math.min(width, 520) - layout.screenPadding * 2;
-  const envelopeSize = Math.max(132, Math.min(184, contentWidth * 0.42));
-  const intensity = useMemo(() => {
-    const ratio = (amount - AMOUNT.min) / (AMOUNT.max - AMOUNT.min);
-    return 0.18 + ratio * 0.82;
-  }, [amount]);
-
   const recent = useMemo(() => envelopes.slice(0, 4), [envelopes]);
+
+  const summary = useMemo(() => {
+    const open = envelopes.filter((e) => OPEN_STATUSES.includes(e.status));
+    const completed = envelopes.filter((e) => e.status === 'completed');
+    return {
+      openCount: open.length,
+      openValue: open.reduce((sum, e) => sum + e.amount, 0),
+      completedCount: completed.length,
+      completedValue: completed.reduce((sum, e) => sum + e.amount, 0),
+    };
+  }, [envelopes]);
 
   const handleCreate = useCallback(() => {
     router.push({ pathname: '/envelope/created', params: { amount: String(amount) } });
@@ -59,8 +65,8 @@ export default function HomeScreen() {
     <ScrollView
       style={styles.screen}
       contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + 108 },
+        screenContent,
+        { paddingTop: insets.top + spacing.lg, paddingBottom: spacing.xxxl },
       ]}
       showsVerticalScrollIndicator={false}
     >
@@ -71,183 +77,171 @@ export default function HomeScreen() {
         onToggleHidden={toggleHidden}
         greeting={greetingForHour()}
         name={profile ? firstName(profile.fullName) : ''}
-        initials={profile?.initials ?? 'PP'}
+        initials={profile?.initials ?? 'EN'}
         onAvatarPress={() => router.push('/(tabs)/profile')}
       />
 
-      <Animated.View entering={FadeIn.delay(80).duration(460)} style={styles.heroWrap}>
+      <Animated.View entering={FadeIn.delay(100).duration(360)} style={styles.statsRow}>
+        <Card style={styles.stat}>
+          <IconTile icon="clock" size={32} color={colors.accent} background={colors.primaryMuted} />
+          <Text style={styles.statLabel}>Awaiting claim</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+            {formatMoney(summary.openValue)}
+          </Text>
+          <Text style={styles.statMeta}>
+            {summary.openCount} {summary.openCount === 1 ? 'envelope' : 'envelopes'}
+          </Text>
+        </Card>
+        <Card style={styles.stat}>
+          <IconTile icon="checkCircle" size={32} color={colors.success} background={colors.successMuted} />
+          <Text style={styles.statLabel}>Delivered</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+            {formatMoney(summary.completedValue)}
+          </Text>
+          <Text style={styles.statMeta}>
+            {summary.completedCount} {summary.completedCount === 1 ? 'envelope' : 'envelopes'}
+          </Text>
+        </Card>
+      </Animated.View>
+
+      <Animated.View entering={FadeIn.delay(160).duration(380)} style={styles.composerWrap}>
         <HeroShell>
-          <View style={styles.heroInner}>
-            <HeroLabel>CREATE AN ENVELOPE</HeroLabel>
-
-            <View style={styles.envelopeStage}>
-              <DigitalEnvelope size={envelopeSize} state="selected" intensity={intensity} />
+          <View style={styles.composerHeader}>
+            <View style={styles.flex}>
+              <Text style={styles.composerTitle}>New envelope</Text>
+              <Text style={styles.composerSubtitle}>
+                Pick an amount, then share a private claim link.
+              </Text>
             </View>
+            <IconTile icon="send" size={36} color={colors.onPrimary} background={colors.primary} />
+          </View>
 
-            <View style={styles.amountBlock}>
-              <AmountDisplay
-                value={amount}
-                onCommit={setAmount}
-                min={AMOUNT.min}
-                max={AMOUNT.max}
-              />
-              <Text style={styles.amountCaption}>How much are you sending?</Text>
-            </View>
-
-            <AmountSlider value={amount} onChange={setAmount} />
-
-            <View style={styles.presetsWrap}>
-              <PresetChips value={amount} onSelect={setAmount} />
-            </View>
-
-            <PrimaryButton
-              label="CREATE ENVELOPE"
-              onPress={handleCreate}
-              accessibilityHint="Generates a private link you can share"
+          <View style={styles.composerBody}>
+            <AmountDisplay
+              value={amount}
+              onCommit={setAmount}
+              min={AMOUNT.min}
+              max={AMOUNT.max}
             />
 
-            <View style={styles.safetyWrap}>
-              <MoneySafetyNote />
+            <View style={styles.sliderWrap}>
+              <AmountSlider value={amount} onChange={setAmount} />
             </View>
+
+            <PresetChips value={amount} onSelect={setAmount} />
+
+            <PrimaryButton
+              label={`Create ${formatMoney(amount, { decimals: amount % 1 !== 0 })} envelope`}
+              onPress={handleCreate}
+              icon={<Icon name="link" size={18} color={colors.onPrimary} strokeWidth={2.1} />}
+              accessibilityHint="Generates a private link you can share"
+              style={styles.cta}
+            />
+
+            <MoneySafetyNote />
           </View>
         </HeroShell>
       </Animated.View>
 
-      <Animated.View entering={FadeIn.delay(160).duration(420)} style={styles.quickRow}>
-        <QuickAction
+      <SectionHeader
+        title="Recent envelopes"
+        actionLabel={envelopes.length > 0 ? 'See all' : undefined}
+        onAction={() => router.push('/(tabs)/envelopes')}
+        style={styles.sectionHeader}
+      />
+
+      {loadingEnvelopes && recent.length === 0 ? (
+        <ListGroup>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ListGroup>
+      ) : recent.length === 0 ? (
+        <EmptyState
           icon="envelope"
-          label="New envelope"
-          onPress={handleCreate}
+          title="No envelopes yet"
+          body="Envelopes you create will appear here, with their status in real time."
         />
-        <QuickAction
-          icon="clock"
-          label="View activity"
-          onPress={() => router.push('/(tabs)/activity')}
-        />
-      </Animated.View>
-
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Envelopes</Text>
-        <Text
-          style={styles.sectionLink}
-          onPress={() => router.push('/(tabs)/envelopes')}
-          accessibilityRole="link"
-        >
-          See all
-        </Text>
-      </View>
-
-      <View style={styles.list}>
-        {loadingEnvelopes && recent.length === 0 ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : recent.length === 0 ? (
-          <View style={styles.empty}>
-            <Icon name="envelope" size={24} color={colors.textMuted} />
-            <Text style={styles.emptyText}>
-              No envelopes yet. Create your first one above.
-            </Text>
-          </View>
-        ) : (
-          recent.map((envelope, index) => (
+      ) : (
+        <ListGroup>
+          {recent.map((envelope) => (
             <EnvelopeCard
               key={envelope.id}
               envelope={envelope}
-              index={index}
               onPress={() => router.push(`/envelope/${envelope.id}`)}
             />
-          ))
-        )}
-      </View>
+          ))}
+        </ListGroup>
+      )}
     </ScrollView>
   );
 }
 
 const createStyles = (colors: Palette) =>
   StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    paddingHorizontal: layout.screenPadding,
-    maxWidth: 520,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  heroWrap: {
-    marginTop: spacing.xxl,
-  },
-  heroInner: {
-    paddingTop: spacing.xxl,
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.xl,
-    alignItems: 'center',
-  },
-  envelopeStage: {
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  amountBlock: {
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
-  amountCaption: {
-    ...type.caption,
-    fontFamily: fontFamily.medium,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
-  presetsWrap: {
-    alignSelf: 'stretch',
-    marginTop: spacing.lg,
-    marginBottom: spacing.xl,
-  },
-  safetyWrap: {
-    marginTop: spacing.lg,
-    alignSelf: 'stretch',
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.xl,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginTop: spacing.xxxl,
-    marginBottom: spacing.lg,
-  },
-  sectionTitle: {
-    ...type.sectionTitle,
-    color: colors.text,
-  },
-  sectionLink: {
-    ...type.caption,
-    fontFamily: fontFamily.semibold,
-    color: colors.primary,
-  },
-  list: {
-    gap: spacing.md,
-  },
-  empty: {
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.xxxl,
-    borderRadius: radius.xl,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderStyle: 'dashed',
-  },
-  emptyText: {
-    ...type.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-});
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    flex: { flex: 1 },
+    statsRow: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.lg,
+    },
+    stat: {
+      flex: 1,
+      gap: 2,
+    },
+    statLabel: {
+      ...type.meta,
+      fontFamily: fontFamily.medium,
+      color: colors.textSecondary,
+      marginTop: spacing.md,
+    },
+    statValue: {
+      ...type.sectionTitle,
+      ...tabularNums,
+      fontFamily: fontFamily.bold,
+      color: colors.text,
+    },
+    statMeta: {
+      ...type.meta,
+      color: colors.textMuted,
+    },
+    composerWrap: {
+      marginTop: spacing.lg,
+    },
+    composerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      padding: spacing.xl,
+      paddingBottom: spacing.lg,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    composerTitle: {
+      ...type.sectionTitle,
+      color: colors.text,
+    },
+    composerSubtitle: {
+      ...type.meta,
+      color: colors.textMuted,
+      marginTop: 2,
+    },
+    composerBody: {
+      padding: spacing.xl,
+      paddingTop: spacing.xxl,
+      gap: spacing.lg,
+    },
+    sliderWrap: {
+      marginTop: -spacing.xs,
+    },
+    cta: {
+      marginTop: spacing.xs,
+    },
+    sectionHeader: {
+      marginTop: spacing.xxxl,
+    },
+  });
