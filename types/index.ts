@@ -128,6 +128,24 @@ export type TransactionResponse = {
   link: string;
 };
 
+/**
+ * `GET /api/utilities/envelopes` ("Get Envelope History"), newest first.
+ *
+ * `envelope_code` is the **full** link token, not a short code, so the
+ * 6-character code shown in the UI is derived from it by the frontend.
+ *
+ * `amount` arrives as a JSON number here (Decimal is coerced), unlike
+ * `/payments/send` where it is serialised as a string.
+ */
+export type EnvelopeHistoryItem = {
+  envelope_code: string;
+  created_at: string;
+  expiry_at: string;
+  transaction_state: string;
+  amount: number | string;
+  shareUrl: string;
+};
+
 export type LoginPayload = {
   phone: string;
   password: string;

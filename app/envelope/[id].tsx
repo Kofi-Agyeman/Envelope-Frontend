@@ -192,7 +192,7 @@ export default function EnvelopeDetailScreen() {
           </Card>
         </Animated.View>
 
-        {envelope.status === 'waiting' ? (
+        {envelope.status === 'waiting' && envelope.shareUrl ? (
           <Animated.View entering={FadeIn.delay(80).duration(380)} style={styles.section}>
             <GroupLabel>Claim link</GroupLabel>
             <Card>

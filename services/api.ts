@@ -6,6 +6,7 @@ import type {
   Balance,
   CreateEnvelopePayload,
   Envelope,
+  EnvelopeHistoryItem,
   EnvelopeStatus,
   MeResponse,
   Profile,
@@ -46,7 +47,30 @@ export async function getBalance(token?: string | null): Promise<Balance> {
 
 export async function getEnvelopes(token?: string | null): Promise<Envelope[]> {
   if (USE_MOCKS) return mockService.getEnvelopes();
-  return request<Envelope[]>('/envelopes', { token });
+
+  const history = await request<EnvelopeHistoryItem[]>('/utilities/envelopes', {
+    token,
+  });
+
+  return history.map((item) => ({
+    // The link token is the only stable identifier the history exposes, so it
+    // doubles as the id. The detail screen matches on id *or* code, and the
+    // token also keeps `shareUrl` derivable if the field is ever dropped.
+    id: item.envelope_code,
+    // The backend returns the full 43-char token; the short code shown in the
+    // UI is derived from it here.
+    code: displayCode(item.envelope_code),
+    amount: toAmount(item.amount),
+    currency: 'GHS',
+    status: mapStatus(item.transaction_state),
+    shareUrl: item.shareUrl,
+    createdAt: item.created_at,
+    expiresAt: item.expiry_at,
+    recipientPhone: null,
+    recipientName: null,
+    claimedAt: null,
+    completedAt: null,
+  }));
 }
 
 export async function getEnvelope(
@@ -54,8 +78,41 @@ export async function getEnvelope(
   token?: string | null,
 ): Promise<Envelope> {
   if (USE_MOCKS) return mockService.getEnvelope(id);
-  return request<Envelope>(`/envelopes/${id}`, { token });
+  // There is no single-envelope route on the backend, so serve it from the
+  // history list the app has already loaded.
+  const match = (await getEnvelopes(token)).find(
+    (item) => item.id === id || item.code === id,
+  );
+  if (!match) throw new Error('Envelope not found');
+  return match;
 }
+
+const ACTIVITY_TYPE: Record<EnvelopeStatus, ActivityEvent['type']> = {
+  waiting: 'envelope_created',
+  claimed: 'envelope_claimed',
+  processing: 'payment_processing',
+  completed: 'payment_completed',
+  expired: 'envelope_expired',
+  failed: 'payment_failed',
+};
+
+const ACTIVITY_TITLE: Record<EnvelopeStatus, string> = {
+  waiting: 'Envelope created',
+  claimed: 'Recipient identified',
+  processing: 'Payment processing',
+  completed: 'Payment completed',
+  expired: 'Envelope expired',
+  failed: 'Payment failed',
+};
+
+const ACTIVITY_SUBTITLE: Record<EnvelopeStatus, string> = {
+  waiting: 'Waiting for recipient',
+  claimed: 'Recipient identified',
+  processing: 'Payment processing',
+  completed: 'Cash delivered',
+  expired: 'Never claimed',
+  failed: 'Could not be completed',
+};
 
 /**
  * The backend's `status` is an open string, while the UI works in terms of
@@ -100,15 +157,23 @@ function toAmount(value: string | number): number {
 }
 
 /**
- * The 6-character code the UI shows is derived from the claim link's secret
- * segment. The backend returns a UUID and a full URL, not a short code, so the
- * tail of the link is the closest stable stand-in.
+ * The backend now returns the full link token (43 URL-safe base64 chars) as
+ * `envelope_code` and in the claim URL, so the short 6-character code the UI
+ * shows has to be derived here. Taking the leading characters keeps it stable
+ * and avoids the `-`/`_` that base64 tokens contain, which read poorly in the
+ * spaced-out code style.
  */
-function codeFromLink(link: string, transactionId: string): string {
-  const tail = link.split('?')[0].split('/').filter(Boolean).pop() ?? '';
-  const cleaned = tail.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-  if (cleaned.length >= 4) return cleaned.slice(-6);
-  return transactionId.replace(/-/g, '').slice(0, 6).toUpperCase();
+export const DISPLAY_CODE_LENGTH = 6;
+
+function displayCode(token: string, fallback = ''): string {
+  const cleaned = token.replace(/[^A-Za-z0-9]/g, '');
+  if (cleaned.length >= DISPLAY_CODE_LENGTH) {
+    return cleaned.slice(0, DISPLAY_CODE_LENGTH).toUpperCase();
+  }
+  const alt = fallback.replace(/-/g, '');
+  return alt.length >= DISPLAY_CODE_LENGTH
+    ? alt.slice(0, DISPLAY_CODE_LENGTH).toUpperCase()
+    : cleaned.toUpperCase();
 }
 
 export async function createEnvelope(
@@ -128,9 +193,12 @@ export async function createEnvelope(
     token,
   });
 
-  return {
+  const linkToken =
+    response.link.split('?')[0].split('/').filter(Boolean).pop() ?? '';
+
+  const envelope: Envelope = {
     id: response.transaction_id,
-    code: codeFromLink(response.link, response.transaction_id),
+    code: displayCode(linkToken, response.transaction_id),
     amount: toAmount(response.amount),
     currency: response.currency,
     status: mapStatus(response.status),
@@ -139,13 +207,30 @@ export async function createEnvelope(
     createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 72 * 3_600_000).toISOString(),
   };
+
+  return envelope;
 }
 
+/**
+ * There is no activity endpoint on the backend, so the timeline is derived
+ * from the same envelope history the Envelopes tab uses. One row per envelope,
+ * reflecting where it currently stands.
+ */
 export async function getActivity(
   token?: string | null,
 ): Promise<ActivityEvent[]> {
   if (USE_MOCKS) return mockService.getActivity();
-  return request<ActivityEvent[]>('/activity', { token });
+
+  const envelopes = await getEnvelopes(token);
+  return envelopes.map((envelope) => ({
+    id: `hist_${envelope.id}`,
+    type: ACTIVITY_TYPE[envelope.status],
+    title: ACTIVITY_TITLE[envelope.status],
+    subtitle: ACTIVITY_SUBTITLE[envelope.status],
+    amount: envelope.amount > 0 ? envelope.amount : null,
+    envelopeId: envelope.id,
+    createdAt: envelope.createdAt,
+  }));
 }
 
 export * from './http';

@@ -135,11 +135,11 @@ The UI never imports a transport directly. Everything goes through
 
 ```ts
 getProfile(token)
-getBalance(token)
-getEnvelopes(token)
-getEnvelope(id, token)
-createEnvelope({ amount }, token)   // -> POST /api/payments/send
-getActivity(token)
+getBalance(token)                             // backend: not implemented yet
+getEnvelopes(token)                           // -> GET /api/utilities/envelopes
+getEnvelope(id, token)                        // served from the loaded list
+createEnvelope({ amount }, token)             // -> POST /api/payments/send
+getActivity(token)                            // derived from the history list
 ```
 
 Each function checks `USE_MOCKS`. Mocks are **opt-in**
@@ -216,12 +216,42 @@ claim the cash. Two adaptations happen at the service boundary:
 
 `node scripts/verify-payments-mapping.js` checks this mapping in isolation.
 
+### Envelope history (Envelopes + Activity tabs)
+
+Both tabs read from `GET /api/utilities/envelopes` ("Get Envelope History"),
+which requires the bearer token and returns a list, newest first:
+
+```ts
+[{
+  envelope_code: string;        // the FULL 43-char link token
+  created_at: string;           // ISO 8601
+  expiry_at: string;            // ISO 8601
+  transaction_state: string;    // e.g. "PENDING"
+  amount: number;               // Decimal, coerced to a number here
+  shareUrl: string;             // the full claim link
+}]
+```
+
+`transaction_state` is uppercase; `mapStatus` normalises it onto `EnvelopeStatus`
+(`PENDING` → `waiting`, `SUCCESS` → `completed`, unknown → `waiting`).
+
+**The 6-character envelope code is derived on the frontend.** The backend
+returns the whole 43-character URL-safe base64 token in `envelope_code` and in
+`shareUrl`, so `displayCode()` takes the first 6 alphanumeric characters and
+uppercases them. Stripping the non-alphanumerics first matters — these tokens
+contain `-` and `_`, which read poorly in the letter-spaced code style. The
+full token is kept as the envelope `id`, since it is the only stable identifier
+the history exposes and the detail screen matches on id *or* code.
+
+There is no separate activity endpoint, so `getActivity` derives one row per
+envelope from the same history.
+
+`node scripts/verify-history-live.js` exercises the whole flow against the
+deployed service, including the auth requirement and the code derivation.
+
 ### Not yet implemented on the backend
 
-`/api/envelopes`, `/api/activity` and `/api/wallet/balance` return `404`. The
-data store already degrades gracefully on failure, so those screens show empty
-states rather than crashing, but envelope listing, history, and balance are not
-yet backed by real endpoints. Creation now works via `/api/payments/send`.
+`/api/wallet/balance` still returns `404`, so the balance card stays empty.
 
 ### Security posture
 

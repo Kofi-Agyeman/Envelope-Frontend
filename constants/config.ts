@@ -12,12 +12,13 @@ export const WEB_BASE_URL =
 
 /**
  * Base URL of the FastAPI backend, including the `/api` prefix that every
- * route lives under (`/api/auth/login`, `/api/envelopes`, ...).
+ * route lives under (`/api/auth/login`, `/api/payments/send`,
+ * `/api/utilities/envelopes`, ...).
  *
- * Override per environment with EXPO_PUBLIC_API_URL. The default targets the
- * host machine, which is what an iOS simulator and a web preview both see.
- * An Android emulator reaches the host at 10.0.2.2 instead, so set the env var
- * to `http://10.0.2.2:8000/api` when running there.
+ * Override per environment with EXPO_PUBLIC_API_URL. The default points at the
+ * deployed service. For local backend development set it to
+ * `http://127.0.0.1:8000/api`, or `http://10.0.2.2:8000/api` from an Android
+ * emulator.
  */
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ?? 'https://envlope.onrender.com/api';

@@ -48,6 +48,18 @@ export default function CreateEnvelopeScreen() {
   const created = useRef<Envelope | null>(null);
   const mounted = useRef(true);
 
+  /**
+   * Guards against sending twice for one screen visit.
+   *
+   * Creating an envelope is not idempotent -- each POST /payments/send moves
+   * real money, so a duplicate is a real duplicate charge rather than a
+   * cosmetic glitch. This is set before the request and only cleared when the
+   * user explicitly taps "Try again", which is the one path that is *meant* to
+   * create a second transaction.
+   */
+  const sent = useRef(false);
+  const sending = useRef(false);
+
   const aura = useSharedValue(0);
   const checkScale = useSharedValue(0);
 
@@ -59,18 +71,27 @@ export default function CreateEnvelopeScreen() {
   }, []);
 
   const runCreation = useCallback(async () => {
+    // A send is already in flight or already succeeded for this visit.
+    if (sending.current || sent.current) return;
+
     setPhase('creating');
     setError(null);
     created.current = null;
     checkScale.value = 0;
     aura.value = 0;
 
+    if (!token) {
+      setError('Your session expired. Please sign in again.');
+      setPhase('error');
+      return;
+    }
+
+    // Claim the slot *before* awaiting, so a concurrent trigger (a token
+    // refresh remounting this effect, or a fast double tap) cannot slip past.
+    sending.current = true;
+    sent.current = true;
+
     try {
-      // The endpoint is authenticated, so bail out early rather than firing a
-      // request that can only come back 401.
-      if (!token) {
-        throw new Error('Your session expired. Please sign in again.');
-      }
       const envelope = await api.createEnvelope({ amount }, token);
       if (!mounted.current) return;
       created.current = envelope;
@@ -106,7 +127,12 @@ export default function CreateEnvelopeScreen() {
       void runCreation();
     }, 460);
     return () => clearTimeout(timer);
-  }, [attempt, runCreation]);
+    // `runCreation` is deliberately not a dependency. It closes over `token`,
+    // so listing it would re-arm this effect every time the access token is
+    // refreshed -- which fires a second POST /payments/send and creates a
+    // duplicate transaction. `attempt` is the only intended trigger, and the
+    // `fired` ref below is the real guard against duplicate sends.
+  }, [attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const auraScale = useDerivedValue(() => 0.8 + aura.value * 0.35, [aura]);
   const auraOpacity = useDerivedValue(() => aura.value, [aura]);
