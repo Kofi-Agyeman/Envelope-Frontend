@@ -1,7 +1,7 @@
-import { USE_MOCKS } from '@/constants/config';
+import { initialsFromName, isExpired, parseServerDate } from '@/utils/format';
 import { request } from './http';
-import { mockService } from './mockService';
 import type {
+  Account,
   ActivityEvent,
   Balance,
   CreateEnvelopePayload,
@@ -15,39 +15,65 @@ import type {
 } from '@/types';
 
 /**
- * Single entry point the UI uses for all backend data.
- *
- * Every function delegates to the FastAPI backend when EXPO_PUBLIC_API_URL is
- * configured, and to the local mock service otherwise. Screens never import
- * either implementation directly, so swapping in the real backend requires no
- * UI changes.
+ * Single entry point the UI uses for all backend data. Every function
+ * performs the real request against the FastAPI backend -- there is no
+ * mock path, so the app cannot silently run on fake data. Screens
+ * never import `http` directly, so the base URL lives in exactly one
+ * place.
  */
 
-export async function getProfile(token?: string | null): Promise<Profile> {
-  if (USE_MOCKS) return mockService.getProfile();
-  const me = await request<MeResponse>('/users/me', { token });
+/**
+ * `GET /api/users/me` -> the app's user model.
+ *
+ * This endpoint is authenticated: the access token has to ride along as
+ * `Authorization: Bearer <jwt>`. A 401 is retried once with a refreshed token
+ * by `request`, and a refresh that also fails ends the session, so an expired
+ * token surfaces as a sign-out rather than a stale screen.
+ *
+ * Exported because it is the one place the wire record is interpreted.
+ */
+export function accountFromWire(me: MeResponse): Account {
   return {
     id: me.id,
     fullName: me.full_name,
-    email: me.email ?? '',
     phone: me.phone_number,
-    initials: me.full_name
-      .trim()
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
-      .join(''),
+    email: me.email ?? null,
+    // Treated as absent rather than verified: an unknown flag must never make
+    // the app vouch for an account the backend has not confirmed.
+    isVerified: me.is_verified === true,
+    initials: initialsFromName(me.full_name),
+  };
+}
+
+/**
+ * The account as the backend currently reports it. The Account screen reads this
+ * directly so it always shows server truth rather than a cached profile.
+ */
+export async function getAccount(token?: string | null): Promise<Account> {
+  return accountFromWire(await request<MeResponse>('/users/me', { token }));
+}
+
+export async function getProfile(token?: string | null): Promise<Profile> {
+  const account = await getAccount(token);
+  return {
+    id: account.id,
+    fullName: account.fullName,
+    email: account.email ?? '',
+    phone: account.phone,
+    initials: account.initials,
+    isVerified: account.isVerified,
   };
 }
 
 export async function getBalance(token?: string | null): Promise<Balance> {
-  if (USE_MOCKS) return mockService.getBalance();
+  // The backend has no /wallet/balance yet, so this request fails and
+  // the balance card stays empty. The call is still made -- it is the
+  // one thing that has to happen for the card to fill in on its own
+  // once the endpoint ships.
   return request<Balance>('/wallet/balance', { token });
 }
 
 export async function getEnvelopes(token?: string | null): Promise<Envelope[]> {
-  if (USE_MOCKS) return mockService.getEnvelopes();
-
   const history = await request<EnvelopeHistoryItem[]>('/utilities/envelopes', {
     token,
   });
@@ -62,10 +88,13 @@ export async function getEnvelopes(token?: string | null): Promise<Envelope[]> {
     code: displayCode(item.envelope_code),
     amount: toAmount(item.amount),
     currency: 'GHS',
-    status: mapStatus(item.transaction_state),
+    // `expiry_at` from this endpoint is the only authority on how long the link
+    // stays valid, so it also settles the status: a link that has passed its
+    // expiry is expired no matter what the stored transaction state still says.
+    status: mapStatus(item.transaction_state, item.expiry_at),
     shareUrl: item.shareUrl,
     createdAt: item.created_at,
-    expiresAt: item.expiry_at,
+    expiresAt: normaliseExpiry(item.expiry_at),
     recipientPhone: null,
     recipientName: null,
     claimedAt: null,
@@ -77,7 +106,6 @@ export async function getEnvelope(
   id: string,
   token?: string | null,
 ): Promise<Envelope> {
-  if (USE_MOCKS) return mockService.getEnvelope(id);
   // There is no single-envelope route on the backend, so serve it from the
   // history list the app has already loaded.
   const match = (await getEnvelopes(token)).find(
@@ -119,8 +147,14 @@ const ACTIVITY_SUBTITLE: Record<EnvelopeStatus, string> = {
  * `EnvelopeStatus`. Anything unrecognised maps to 'waiting' rather than
  * 'failed', because a new backend state is far more likely to be a healthy
  * in-progress envelope than a genuine failure.
+ *
+ * `expiryAt` is checked last and only for the states that still need a live
+ * link: once the server's expiry has passed, an envelope that is still recorded
+ * as unclaimed/claimed is dead to the recipient, so the UI must treat it as
+ * expired even though the stored state lags. A paid or failed envelope keeps
+ * its own status.
  */
-function mapStatus(raw: string): EnvelopeStatus {
+function mapStatus(raw: string, expiryAt?: string | null): EnvelopeStatus {
   const value = raw.trim().toLowerCase();
   if (
     value === 'waiting' ||
@@ -130,7 +164,11 @@ function mapStatus(raw: string): EnvelopeStatus {
     value === 'expired' ||
     value === 'failed'
   ) {
-    return value;
+    const mapped = value;
+    if ((mapped === 'waiting' || mapped === 'claimed') && isExpired(expiryAt)) {
+      return 'expired';
+    }
+    return mapped;
   }
   if (
     value === 'success' ||
@@ -142,12 +180,18 @@ function mapStatus(raw: string): EnvelopeStatus {
     return 'completed';
   }
   if (value === 'pending' || value === 'created' || value === 'active') {
-    return 'waiting';
+    return isExpired(expiryAt) ? 'expired' : 'waiting';
   }
   if (value === 'cancelled' || value === 'canceled' || value === 'declined') {
     return 'failed';
   }
-  return 'waiting';
+  return isExpired(expiryAt) ? 'expired' : 'waiting';
+}
+
+/** `expiry_at` as a parseable ISO string, or `null` when the server sent none. */
+function normaliseExpiry(value: string | null | undefined): string | null {
+  const ms = parseServerDate(value);
+  return ms === null ? null : new Date(ms).toISOString();
 }
 
 /** Decimal is serialised as a string; tolerate a number in case that changes. */
@@ -180,8 +224,6 @@ export async function createEnvelope(
   payload: CreateEnvelopePayload,
   token?: string | null,
 ): Promise<Envelope> {
-  if (USE_MOCKS) return mockService.createEnvelope(payload);
-
   // Send the amount as a string to keep Decimal precision exact.
   const body: SendMoneyRequestBody = {
     amount: payload.amount.toFixed(2),
@@ -197,7 +239,10 @@ export async function createEnvelope(
     response.link.split('?')[0].split('/').filter(Boolean).pop() ?? '';
 
   const envelope: Envelope = {
-    id: response.transaction_id,
+    // The claim token is the identity the history endpoint uses, so keying the
+    // local copy on it means the server record replaces this one in place as
+    // soon as it is fetched, instead of showing up as a second envelope.
+    id: linkToken || response.transaction_id,
     code: displayCode(linkToken, response.transaction_id),
     amount: toAmount(response.amount),
     currency: response.currency,
@@ -205,10 +250,47 @@ export async function createEnvelope(
     // The recipient claims the cash by opening this link.
     shareUrl: response.link,
     createdAt: new Date().toISOString(),
-    expiresAt: new Date(Date.now() + 72 * 3_600_000).toISOString(),
+    // `/payments/send` does not return an expiry, so none is guessed here. The
+    // real window is read from `expiry_at` in the envelope history.
+    expiresAt: null,
   };
 
+  const expiry = await fetchServerExpiry(envelope.id, token);
+  if (expiry) {
+    envelope.expiresAt = expiry;
+    envelope.status = mapStatus(envelope.status, expiry);
+  }
+
   return envelope;
+}
+
+/**
+ * Best-effort read of the server's expiry for one envelope.
+ *
+ * `POST /payments/send` returns no `expiry_at`, so the only place the real
+ * window exists is the envelope history. A miss here is not an error: the
+ * envelope stays valid with `expiresAt === null` and the detail screen retries
+ * the history fetch when it needs the number.
+ */
+async function fetchServerExpiry(
+  envelopeId: string,
+  token?: string | null,
+): Promise<string | null> {
+  if (!envelopeId) return null;
+  try {
+    const history = await request<EnvelopeHistoryItem[]>('/utilities/envelopes', {
+      token,
+    });
+    const match = history.find(
+      (item) =>
+        item.envelope_code === envelopeId ||
+        (!!item.shareUrl && item.shareUrl.includes(envelopeId)),
+    );
+    return normaliseExpiry(match?.expiry_at);
+  } catch {
+    // The envelope was created; only the countdown is missing.
+    return null;
+  }
 }
 
 /**
@@ -219,8 +301,6 @@ export async function createEnvelope(
 export async function getActivity(
   token?: string | null,
 ): Promise<ActivityEvent[]> {
-  if (USE_MOCKS) return mockService.getActivity();
-
   const envelopes = await getEnvelopes(token);
   return envelopes.map((envelope) => ({
     id: `hist_${envelope.id}`,
@@ -234,4 +314,3 @@ export async function getActivity(
 }
 
 export * from './http';
-export { mockService };

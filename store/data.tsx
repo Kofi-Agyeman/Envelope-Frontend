@@ -27,6 +27,31 @@ type DataState = {
 
 const DataContext = createContext<DataState | null>(null);
 
+/** Two records are the same envelope if any stable identifier agrees. */
+function sameEnvelope(a: Envelope, b: Envelope): boolean {
+  return (
+    a.id === b.id ||
+    a.code === b.code ||
+    (!!a.shareUrl && a.shareUrl === b.shareUrl)
+  );
+}
+
+/**
+ * The server list wins, but an envelope created in this session is kept until
+ * the history catches up. Without this the just-created envelope would blink
+ * out of the list the moment the first refresh landed before it was indexed.
+ * Only unsynced envelopes (`expiresAt === null`) are kept, so this window
+ * closes on its own once the server publishes the real `expiry_at`.
+ */
+function mergeEnvelopes(server: Envelope[], local: Envelope[]): Envelope[] {
+  const pending = local.filter(
+    (envelope) =>
+      envelope.expiresAt === null &&
+      !server.some((item) => sameEnvelope(item, envelope)),
+  );
+  return pending.length > 0 ? [...server, ...pending] : server;
+}
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const { token, status } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
@@ -51,7 +76,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const refreshEnvelopes = useCallback(async () => {
     setLoadingEnvelopes(true);
     try {
-      setEnvelopes(await api.getEnvelopes(token));
+      const server = await api.getEnvelopes(token);
+      setEnvelopes((prev) => mergeEnvelopes(server, prev));
     } catch {
       // Keep previously loaded list.
     } finally {
@@ -81,7 +107,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, [refreshBalance, refreshEnvelopes, refreshActivity]);
 
   const addEnvelope = useCallback((envelope: Envelope) => {
-    setEnvelopes((prev) => [envelope, ...prev]);
+    setEnvelopes((prev) =>
+      prev.some((item) => sameEnvelope(item, envelope))
+        ? prev.map((item) => (sameEnvelope(item, envelope) ? envelope : item))
+        : [envelope, ...prev],
+    );
     setActivity((prev) => [
       {
         id: `local_${envelope.id}`,

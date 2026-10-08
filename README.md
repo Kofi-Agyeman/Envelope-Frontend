@@ -42,10 +42,10 @@ npm run typecheck   # tsc --noEmit
 code. Expo Go covers all of them, but a development build
 (`npx expo run:android`) is required if you add anything not in the Expo SDK.
 
-## Demo sign-in
-
-Any well-formed number works while mock mode is active. There is also a
-one-tap **Use demo account** button on the login screen (`024 563 4567`).
+There is no demo mode and no mock service: every screen talks to the
+deployed FastAPI backend. The only exception is the balance card, which
+stays empty because `/api/wallet/balance` does not exist on the backend
+yet (see [Backend integration](#backend-integration)).
 
 ---
 
@@ -64,6 +64,8 @@ app/
 │   ├── envelopes.tsx     Envelopes with animated filters
 │   ├── activity.tsx      Grouped timeline
 │   └── profile.tsx       Grouped settings, native switches
+├── account/
+│   └── index.tsx         → /account — the live GET /users/me record
 └── envelope/
     ├── created.tsx       Creation animation → success → share
     └── [id].tsx          Share link + lifecycle timeline
@@ -86,15 +88,14 @@ components/
 └── Skeleton.tsx          Shimmer placeholders
 
 services/
-├── api.ts                Single data entry point (mock ⇄ backend)
+├── api.ts                Single data entry point, always the backend
 ├── http.ts               Fetch wrapper, ApiError
 ├── auth.ts               Login/register/session persistence
-├── mockService.ts        In-memory backend
-└── mockData.ts           Seed fixtures
+└── tokenManager.ts       Token pair, 401 refresh
 
 store/     auth.tsx, data.tsx, theme.tsx — app state
 constants/ theme, typography, layout, config
-utils/     format, haptics, async
+utils/     format, haptics
 hooks/     useReducedMotion
 ```
 
@@ -180,6 +181,50 @@ neither auth endpoint returns user details. Snake_case wire shapes live in
 Run `node scripts/verify-auth.js` to exercise the whole contract against a
 running backend.
 
+### The Account screen (`/account`)
+
+`app/account/index.tsx` renders the `GET /api/users/me` record in full. It is
+reachable from **Profile → Personal information**.
+
+**This endpoint requires the JWT.** The call goes through `request` with the
+session's access token as `Authorization: Bearer <jwt>`, so it inherits the same
+401 handling as everything else: one refresh-and-replay, and a refresh that also
+fails ends the session through the auth store, which unmounts the screen. A 401
+or 403 that still gets through is shown as "Your session has expired", never as
+raw `Not authenticated`.
+
+The endpoint returns exactly five fields, and all five are on screen:
+
+```ts
+{
+  id: string;            // UUID -> "User ID"
+  full_name: string;     // -> "Full name", and the hero card
+  phone_number: string;  // -> "MTN MoMo number" (masked in the hero pill)
+  email: string | null;  // -> "Email", or "Not added"
+  is_verified: boolean;  // -> "Verification" and the hero badge
+}
+```
+
+Two deliberate details:
+
+- `is_verified` is read as `=== true`, so a missing or `1`-shaped value reads as
+  **not verified**. The app never vouches for an account the backend has not
+  confirmed.
+- `email` stays nullable end to end (`Account.email: string | null`) because the
+  backend allows an account with no email; the screen prints "Not added" instead
+  of an empty row.
+
+The record is fetched live on every visit and on pull-to-refresh rather than read
+from the cached profile in the auth store, so the screen always shows current
+server truth. A failed refresh keeps the last good record on screen behind a
+warning instead of blanking it.
+
+`node scripts/verify-account-live.js` checks the contract against the deployed
+service: that the token is required (missing, scheme-less and malformed tokens
+are all rejected), that the record is the account that signed up, that the field
+list is unchanged, and that a user registered without an email comes back as
+`null`.
+
 ### Creating a payment
 
 Envelope creation posts to `POST /api/payments/send` with the access token:
@@ -214,6 +259,11 @@ claim the cash. Two adaptations happen at the service boundary:
 - The UI's 6-character envelope code is derived from the tail of the claim
   link, since the backend returns a UUID rather than a short code.
 
+`TransactionResponse` carries **no expiry**, so the app never invents one after a
+send. `createEnvelope` reads the real deadline from `expiry_at` in the envelope
+history (see below) and leaves `expiresAt` as `null` if the history has not
+published one yet.
+
 `node scripts/verify-payments-mapping.js` checks this mapping in isolation.
 
 ### Envelope history (Envelopes + Activity tabs)
@@ -225,7 +275,7 @@ which requires the bearer token and returns a list, newest first:
 [{
   envelope_code: string;        // the FULL 43-char link token
   created_at: string;           // ISO 8601
-  expiry_at: string;            // ISO 8601
+  expiry_at: string | null;     // ISO 8601, with an explicit UTC offset
   transaction_state: string;    // e.g. "PENDING"
   amount: number;               // Decimal, coerced to a number here
   shareUrl: string;             // the full claim link
@@ -235,19 +285,50 @@ which requires the bearer token and returns a list, newest first:
 `transaction_state` is uppercase; `mapStatus` normalises it onto `EnvelopeStatus`
 (`PENDING` → `waiting`, `SUCCESS` → `completed`, unknown → `waiting`).
 
+### Expiry is decided by the backend, not by the app
+
+**`expiry_at` from this endpoint is the only thing that decides when a link
+stops working.** The app keeps no window of its own:
+
+- No `+72h` is added anywhere. `constants/config.ts`'s `ENVELOPE.expiryHours` is
+  unused by the runtime — the server owns the deadline.
+- `utils/format.ts` reads timestamps through `parseServerDate`, which treats a
+  value with no zone designator as UTC. A naive timestamp would otherwise be read
+  as device-local time and shift the countdown by the device's offset.
+- `countdownLabel(expiry_at)` is the countdown, and `isExpired(expiry_at)` is the
+  gate. A missing or unparseable `expiry_at` is *unknown*, not *expired*: it
+  reads "Expiry pending" and does not block anything, because a guessed window
+  would either hide a live link or resurrect a dead one.
+- An envelope still recorded as `PENDING`/`CLAIMED` after its `expiry_at` is
+  shown as **expired** — the stored state lags, the deadline does not. `completed`,
+  `failed` and `processing` keep their own status.
+- The detail screen re-reads the history at most once per envelope when it
+  arrives without an expiry, and ticks every 30s so the countdown and the gate
+  flip on their own while the screen is open.
+
+**Once a link is expired it cannot be copied or shared.** The claim-link card is
+replaced by a "Link no longer available" note; `handleCopy` and `handleShare`
+both re-check `canCopyLink`, so the actions are unreachable even if the UI were
+to render them. The gate is `status === 'waiting' && !expired && shareUrl`, so
+`claimed`, `processing`, `completed` and `failed` envelopes are not copyable
+either — there is nothing left to hand over.
+
 **The 6-character envelope code is derived on the frontend.** The backend
 returns the whole 43-character URL-safe base64 token in `envelope_code` and in
 `shareUrl`, so `displayCode()` takes the first 6 alphanumeric characters and
 uppercases them. Stripping the non-alphanumerics first matters — these tokens
 contain `-` and `_`, which read poorly in the letter-spaced code style. The
 full token is kept as the envelope `id`, since it is the only stable identifier
-the history exposes and the detail screen matches on id *or* code.
+the history exposes and the detail screen matches on id *or* code. A freshly
+created envelope is keyed on the same token (not on `transaction_id`), so the
+server row replaces it in place on the next refresh instead of appearing twice.
 
 There is no separate activity endpoint, so `getActivity` derives one row per
 envelope from the same history.
 
 `node scripts/verify-history-live.js` exercises the whole flow against the
-deployed service, including the auth requirement and the code derivation.
+deployed service, and `node scripts/verify-expiry-gate.js` covers the countdown,
+the expiry gate and the copy/share rule offline.
 
 ### Not yet implemented on the backend
 
@@ -272,10 +353,11 @@ expected shape.
 
 ```ts
 AMOUNT = { min: 5, max: 500, step: 5, presets: [20, 50, 100, 200, 500] }
-ENVELOPE = { expiryHours: 72 }
+ENVELOPE = { expiryHours: 72 }   // display default only; the server decides
 ```
 
-Changing the slider range or presets needs no other edits.
+Changing the slider range or presets needs no other edits. `expiryHours` is not
+consulted at runtime — link validity comes from `expiry_at` (see above).
 
 ## Design notes
 

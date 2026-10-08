@@ -10,13 +10,18 @@ const check = (name, cond, extra) => {
   else { fail++; console.log(`  FAIL  ${name}${extra ? ` -> ${extra}` : ''}`); }
 };
 
-function mapStatus(raw) {
+function mapStatus(raw, expiryAt, now = Date.now()) {
   const value = String(raw ?? '').trim().toLowerCase();
-  if (['waiting', 'claimed', 'processing', 'completed', 'expired', 'failed'].includes(value)) return value;
+  const deadline = expiryAt ? Date.parse(expiryAt) : null;
+  const dead = deadline !== null && !Number.isNaN(deadline) && deadline <= now;
+  if (['waiting', 'claimed', 'processing', 'completed', 'expired', 'failed'].includes(value)) {
+    if ((value === 'waiting' || value === 'claimed') && dead) return 'expired';
+    return value;
+  }
   if (['success', 'succeeded', 'successful', 'paid', 'complete'].includes(value)) return 'completed';
-  if (['pending', 'created', 'active'].includes(value)) return 'waiting';
+  if (['pending', 'created', 'active'].includes(value)) return dead ? 'expired' : 'waiting';
   if (['cancelled', 'canceled', 'declined'].includes(value)) return 'failed';
-  return 'waiting';
+  return dead ? 'expired' : 'waiting';
 }
 
 async function main() {
@@ -93,6 +98,26 @@ async function main() {
   const codes = history.map((r) => r.envelope_code);
   check('tokens are unique', new Set(codes).size === codes.length);
   check('display codes are unique', new Set(history.map((r) => r.envelope_code.replace(/[^A-Za-z0-9]/g, '').slice(0, 6).toUpperCase())).size === history.length);
+
+  console.log('\n9. The new envelope is identifiable and dated immediately');
+  const token = tx.link.split('?')[0].split('/').filter(Boolean).pop();
+  check('envelope_code IS the link token', row.envelope_code === token, `${row.envelope_code} vs ${token}`);
+  check('a fresh send is already in the history', rows.length === 1, `matched ${rows.length}`);
+  check('expiry_at is in the future', Date.parse(row.expiry_at) > Date.now(), row.expiry_at);
+  const windowHours = (Date.parse(row.expiry_at) - Date.parse(row.created_at)) / 3_600_000;
+  check('window is about a day', windowHours > 23 && windowHours < 25, `${windowHours.toFixed(2)}h`);
+  check('expiry_at carries a UTC offset', /[+-]\d{2}:\d{2}$|Z$/.test(row.expiry_at), row.expiry_at);
+  check('a PENDING row inside its window is not expired',
+    mapStatus(row.transaction_state) !== 'expired', mapStatus(row.transaction_state));
+  console.log(`        expiry_at = ${row.expiry_at} (${windowHours.toFixed(2)}h window)`);
+
+  console.log('\n10. A row whose expiry has passed is treated as expired');
+  const stale = { ...row, expiry_at: new Date(Date.parse(row.created_at) + 1000).toISOString() };
+  check('a stale expiry overrides PENDING', mapStatus(stale.transaction_state, stale.expiry_at) === 'expired',
+    mapStatus(stale.transaction_state, stale.expiry_at));
+  check('an unknown expiry keeps the stored state',
+    mapStatus(row.transaction_state, null) === mapStatus(row.transaction_state),
+    mapStatus(row.transaction_state, null));
 
   console.log(`\n${pass} passed, ${fail} failed\n`);
   process.exit(fail > 0 ? 1 : 0);

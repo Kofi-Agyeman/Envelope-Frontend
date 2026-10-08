@@ -38,14 +38,40 @@ function toAmount(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function mapStatus(raw) {
-  const value = String(raw ?? '').trim().toLowerCase();
-  if (['waiting', 'claimed', 'processing', 'completed', 'expired', 'failed'].includes(value)) return value;
-  if (['success', 'succeeded', 'successful', 'paid', 'complete'].includes(value)) return 'completed';
-  if (['pending', 'created', 'active'].includes(value)) return 'waiting';
-  if (['cancelled', 'canceled', 'declined'].includes(value)) return 'failed';
-  return 'waiting';
+function parseServerDate(value) {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const ms = Date.parse(hasZone ? trimmed : `${trimmed}Z`);
+  return Number.isNaN(ms) ? null : ms;
 }
+
+function normaliseExpiry(value) {
+  const ms = parseServerDate(value);
+  return ms === null ? null : new Date(ms).toISOString();
+}
+
+function isExpired(value, now = Date.now()) {
+  const ms = parseServerDate(value);
+  return ms !== null && ms <= now;
+}
+
+function mapStatus(raw, expiryAt, now = Date.now()) {
+  const value = String(raw ?? '').trim().toLowerCase();
+  const dead = isExpired(expiryAt, now);
+  if (['waiting', 'claimed', 'processing', 'completed', 'expired', 'failed'].includes(value)) {
+    if ((value === 'waiting' || value === 'claimed') && dead) return 'expired';
+    return value;
+  }
+  if (['success', 'succeeded', 'successful', 'paid', 'complete'].includes(value)) return 'completed';
+  if (['pending', 'created', 'active'].includes(value)) return dead ? 'expired' : 'waiting';
+  if (['cancelled', 'canceled', 'declined'].includes(value)) return 'failed';
+  return dead ? 'expired' : 'waiting';
+}
+
+// Fixed reference point inside the captured rows' real 24h window
+// (created 2026-10-04T00:53Z, expiry 2026-10-05T00:53Z).
+const NOW = Date.parse('2026-10-04T12:00:00Z');
 
 const ACTIVITY_TYPE = {
   waiting: 'envelope_created', claimed: 'envelope_claimed', processing: 'payment_processing',
@@ -64,10 +90,10 @@ const mapped = LIVE.map((item) => ({
   code: displayCode(item.envelope_code),
   amount: toAmount(item.amount),
   currency: 'GHS',
-  status: mapStatus(item.transaction_state),
+  status: mapStatus(item.transaction_state, item.expiry_at, NOW),
   shareUrl: item.shareUrl,
   createdAt: item.created_at,
-  expiresAt: item.expiry_at,
+  expiresAt: normaliseExpiry(item.expiry_at),
 }));
 
 check('produces one envelope per row', mapped.length === 2);
@@ -94,6 +120,30 @@ check('missing token falls back', displayCode('', 'abcdef01-2345') === 'ABCDEF')
 console.log('\nDates are parseable');
 check('createdAt parses', !Number.isNaN(Date.parse(mapped[0].createdAt)));
 check('expiry is after creation', Date.parse(mapped[0].expiresAt) > Date.parse(mapped[0].createdAt));
+
+console.log('\nexpiry_at is the only clock (NOW = 2026-10-04T12:00:00Z)');
+const at = (state, expiry) => mapStatus(state, expiry, NOW);
+check('future expiry keeps PENDING waiting', at('PENDING', '2026-10-06T00:00:00+00:00') === 'waiting');
+check('past expiry turns PENDING expired', at('PENDING', '2026-10-04T00:00:00+00:00') === 'expired');
+check('expiry exactly now is expired', at('PENDING', '2026-10-04T12:00:00+00:00') === 'expired');
+check('past expiry turns CLAIMED expired', at('CLAIMED', '2026-10-04T00:00:00+00:00') === 'expired');
+check('missing expiry keeps PENDING waiting', at('PENDING', null) === 'waiting');
+check('missing expiry keeps CLAIMED claimed', at('CLAIMED', null) === 'claimed');
+check('paid envelope stays completed past expiry', at('SUCCESS', '2026-10-04T00:00:00+00:00') === 'completed');
+check('failed envelope stays failed past expiry', at('FAILED', '2026-10-04T00:00:00+00:00') === 'failed');
+check('processing envelope is not force-expired', at('PROCESSING', '2026-10-04T00:00:00+00:00') === 'processing');
+check('unknown state past expiry is expired', at('SOMETHING_NEW', '2026-10-04T00:00:00+00:00') === 'expired');
+check('both captured rows were still inside their window', mapped.every((e) => e.status === 'waiting'),
+  mapped.map((e) => e.status).join(','));
+check('expiry is stored as an ISO string', mapped.every((e) => typeof e.expiresAt === 'string' && e.expiresAt.endsWith('Z')));
+check('a null expiry is never invented', normaliseExpiry(null) === null, String(normaliseExpiry(null)));
+
+console.log('\nTimestamps without a zone are read as UTC');
+check('naive expiry matches the same instant with an offset',
+  parseServerDate('2026-10-05T00:53:41.648667') === parseServerDate('2026-10-05T00:53:41.648667+00:00'));
+check('Z suffix is honoured', parseServerDate('2026-10-05T00:53:41.648667Z') === parseServerDate('2026-10-05T00:53:41.648667+00:00'));
+check('negative offset is honoured', parseServerDate('2026-10-04T20:53:41-04:00') === parseServerDate('2026-10-05T00:53:41+00:00'));
+check('garbage is null, not NaN', parseServerDate('not-a-date') === null);
 
 console.log('\nStatus vocabulary from transaction_state');
 for (const [input, expected] of [

@@ -21,8 +21,6 @@ import { layout, radius, spacing } from '@/constants/layout';
 import { fontFamily, type } from '@/constants/typography';
 import { haptics } from '@/utils/haptics';
 import { useAuth } from '@/store/auth';
-import { demoCredentials } from '@/services/auth';
-import { USE_MOCKS } from '@/constants/config';
 
 export default function LoginScreen() {
   const { colors } = useTheme();
@@ -63,12 +61,6 @@ export default function LoginScreen() {
       setLoading(false);
     }
   }, [canSubmit, loading, password, phone, preferences.hasSeenOnboarding, router, signIn]);
-
-  const useDemo = useCallback(() => {
-    setPhone(demoCredentials.phone);
-    setPassword(demoCredentials.password);
-    setError(null);
-  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -147,19 +139,6 @@ export default function LoginScreen() {
             disabled={!canSubmit}
             accessibilityHint="Signs in to your Envelope account"
           />
-
-          {USE_MOCKS ? (
-            <Pressable
-              onPress={useDemo}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.demoButton, pressed && { opacity: 0.8 }]}
-            >
-              <Icon name="spark" size={14} color={colors.accent} />
-              <Text style={styles.demoText}>
-                Use demo account · {demoCredentials.masked}
-              </Text>
-            </Pressable>
-          ) : null}
         </Animated.View>
 
         <View style={styles.footer}>
@@ -233,22 +212,6 @@ const createStyles = (colors: Palette) =>
       ...type.caption,
       color: colors.error,
       flexShrink: 1,
-    },
-    demoButton: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: spacing.sm,
-      height: 44,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.borderStrong,
-      marginTop: -spacing.sm,
-    },
-    demoText: {
-      ...type.caption,
-      color: colors.textSecondary,
     },
     footer: {
       marginTop: 'auto',

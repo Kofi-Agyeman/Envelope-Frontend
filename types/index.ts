@@ -18,7 +18,13 @@ export type Envelope = {
   createdAt: string;
   claimedAt?: string | null;
   completedAt?: string | null;
-  expiresAt: string;
+  /**
+   * The moment the claim link stops working, as decided by the backend
+   * (`expiry_at` from GET /utilities/envelopes). `null` means the server has not
+   * published an expiry yet -- the app never invents one, because a guessed
+   * window would either hide a valid link or resurrect a dead one.
+   */
+  expiresAt: string | null;
 };
 
 export type Balance = {
@@ -33,6 +39,26 @@ export type Profile = {
   fullName: string;
   email: string;
   phone: string;
+  initials: string;
+  /** `is_verified` from the backend; false until the backend says otherwise. */
+  isVerified: boolean;
+};
+
+/**
+ * The signed-in user's record, straight from `GET /api/users/me`.
+ *
+ * Everything this endpoint returns is carried here verbatim, with only the
+ * snake_case wire names normalised. `email` stays nullable because the backend
+ * allows an account with no email at all.
+ */
+export type Account = {
+  id: string;
+  fullName: string;
+  /** MTN MoMo number exactly as the backend stores it. */
+  phone: string;
+  email: string | null;
+  isVerified: boolean;
+  /** Derived from `fullName` for display only; not part of the response. */
   initials: string;
 };
 
@@ -140,7 +166,7 @@ export type TransactionResponse = {
 export type EnvelopeHistoryItem = {
   envelope_code: string;
   created_at: string;
-  expiry_at: string;
+  expiry_at: string | null;
   transaction_state: string;
   amount: number | string;
   shareUrl: string;

@@ -25,6 +25,7 @@ import { haptics } from '@/utils/haptics';
 import { useAuth } from '@/store/auth';
 import { useData } from '@/store/data';
 import * as api from '@/services/api';
+import { ApiError } from '@/services/http';
 import type { Envelope } from '@/types';
 
 type Phase = 'creating' | 'ready' | 'error';
@@ -111,10 +112,13 @@ export default function CreateEnvelopeScreen() {
       aura.value = withTiming(0.45, { duration: 460 });
       setPhase('ready');
     } catch (e) {
+      sending.current = false;
+      // The send did not succeed, so allow an explicit retry to try again.
+      sent.current = false;
       if (!mounted.current) return;
       haptics.error();
       setError(
-        e instanceof api.ApiError
+        e instanceof ApiError
           ? e.message
           : "We couldn't create your Envelope. Your money has not been moved.",
       );
@@ -133,6 +137,14 @@ export default function CreateEnvelopeScreen() {
     // duplicate transaction. `attempt` is the only intended trigger, and the
     // `fired` ref below is the real guard against duplicate sends.
   }, [attempt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleRetry = useCallback(() => {
+    // Explicit retry is the only thing allowed to spend another request, so the
+    // guards are cleared here and nowhere else.
+    sending.current = false;
+    sent.current = false;
+    setAttempt((a) => a + 1);
+  }, []);
 
   const auraScale = useDerivedValue(() => 0.8 + aura.value * 0.35, [aura]);
   const auraOpacity = useDerivedValue(() => aura.value, [aura]);
@@ -234,7 +246,7 @@ export default function CreateEnvelopeScreen() {
 
       {phase === 'error' ? (
         <Animated.View entering={FadeIn.duration(260)} style={styles.actions}>
-          <PrimaryButton label="Try again" onPress={() => setAttempt((a) => a + 1)} />
+          <PrimaryButton label="Try again" onPress={handleRetry} />
           <PrimaryButton
             label="Back to home"
             variant="ghost"

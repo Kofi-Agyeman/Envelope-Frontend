@@ -164,7 +164,13 @@ export default function ProfileScreen() {
       <View style={styles.section}>
         <GroupLabel>Account</GroupLabel>
         <ListGroup>
-          <ListRow icon="profile" title="Personal information" subtitle={profile?.fullName} />
+          <ListRow
+            icon="profile"
+            title="Personal information"
+            subtitle={profile?.fullName}
+            value={profile?.isVerified ? 'Verified' : undefined}
+            onPress={() => router.push('/account')}
+          />
           <ListRow
             icon="wallet"
             title="MTN MoMo wallet"

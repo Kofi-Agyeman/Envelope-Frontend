@@ -1,5 +1,4 @@
 import { API_BASE_URL } from '@/constants/config';
-import { USE_MOCKS } from '@/constants/config';
 import { refreshTokens } from './tokenManager';
 
 export class ApiError extends Error {
@@ -131,8 +130,3 @@ export async function request<T>(
 
   return payload as T;
 }
-
-export const apiConfig = {
-  baseUrl: API_BASE_URL,
-  usingMocks: USE_MOCKS,
-} as const;

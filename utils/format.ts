@@ -20,32 +20,60 @@ export function maskPhone(phone: string): string {
   return `•••• ${digits.slice(-4)}`;
 }
 
-export function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', {
+/**
+ * Reads a backend timestamp.
+ *
+ * FastAPI serialises `expiry_at`/`created_at` with an explicit UTC offset, but a
+ * naive timestamp would be interpreted as device-local time and silently shift
+ * the countdown by the device's offset. Anything without a zone designator is
+ * therefore read as UTC. `null` means "the server has not said", which is not
+ * the same as "expired".
+ */
+export function parseServerDate(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(trimmed);
+  const ms = Date.parse(hasZone ? trimmed : `${trimmed}Z`);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+/** True only once the server's own expiry has passed. */
+export function isExpired(value: string | null | undefined, now = Date.now()): boolean {
+  const ms = parseServerDate(value);
+  return ms !== null && ms <= now;
+}
+
+export function formatTime(iso: string | null | undefined): string {
+  const ms = parseServerDate(iso);
+  if (ms === null) return '—';
+  return new Date(ms).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
 }
 
-export function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
+export function formatDate(iso: string | null | undefined): string {
+  const ms = parseServerDate(iso);
+  if (ms === null) return '—';
+  return new Date(ms).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
   });
 }
 
-export function formatDateLong(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', {
+export function formatDateLong(iso: string | null | undefined): string {
+  const ms = parseServerDate(iso);
+  if (ms === null) return '—';
+  return new Date(ms).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
 }
 
-export function relativeTime(iso: string): string {
-  const then = new Date(iso).getTime();
+export function relativeTime(iso: string | null | undefined): string {
+  const then = parseServerDate(iso);
+  if (then === null) return '—';
   const diff = Date.now() - then;
   const minutes = Math.floor(diff / 60000);
 
@@ -62,21 +90,28 @@ export function relativeTime(iso: string): string {
   return formatDate(iso);
 }
 
-export function countdownLabel(iso: string): string {
-  const diff = new Date(iso).getTime() - Date.now();
+/**
+ * Countdown to the backend's `expiry_at`. This is the only thing that decides
+ * how long a link is still good -- the app holds no window of its own.
+ */
+export function countdownLabel(iso: string | null | undefined, now = Date.now()): string {
+  const ms = parseServerDate(iso);
+  if (ms === null) return 'Expiry pending';
+  const diff = ms - now;
   if (diff <= 0) return 'Expired';
-  const hours = Math.floor(diff / 3_600_000);
-  if (hours >= 24) {
-    const days = Math.floor(hours / 24);
-    return `${days}d left`;
-  }
-  if (hours >= 1) return `${hours}h left`;
-  const minutes = Math.max(1, Math.floor(diff / 60000));
-  return `${minutes}m left`;
+  if (diff < 60_000) return 'Under a minute left';
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes}m left`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h left`;
+  const days = Math.floor(hours / 24);
+  return `${days}d left`;
 }
 
-export function dayLabel(iso: string): string {
-  const d = new Date(iso);
+export function dayLabel(iso: string | null | undefined): string {
+  const ms = parseServerDate(iso);
+  if (ms === null) return '—';
+  const d = new Date(ms);
   const now = new Date();
   const startOfDay = (x: Date) =>
     new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();

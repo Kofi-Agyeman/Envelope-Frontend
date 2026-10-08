@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -27,9 +27,10 @@ import {
   formatDateLong,
   formatMoney,
   formatTime,
+  isExpired,
 } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
-import { useEnvelope } from '@/store/data';
+import { useData, useEnvelope } from '@/store/data';
 import type { Envelope, EnvelopeStatus } from '@/types';
 
 type Stage = {
@@ -71,8 +72,33 @@ function visualState(status: EnvelopeStatus) {
   }
 }
 
-function envelopeState(envelope: Envelope) {
-  return visualState(envelope.status);
+/**
+ * `expiry_at` from the envelope history is the only clock that matters. The
+ * stored status can lag behind it -- an envelope still recorded as unclaimed
+ * after its expiry is dead to the recipient -- so expiry is applied on top of
+ * whatever the server reported rather than trusted to it alone.
+ */
+function effectiveStatus(envelope: Envelope, now: number): EnvelopeStatus {
+  if (isExpired(envelope.expiresAt, now)) {
+    if (envelope.status === 'waiting' || envelope.status === 'claimed') {
+      return 'expired';
+    }
+  }
+  return envelope.status;
+}
+
+/**
+ * Re-renders on a timer so the countdown and the expiry gate stay honest while
+ * the screen is open. Half a minute is frequent enough that a link never stays
+ * copyable for long past its deadline.
+ */
+function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+  return now;
 }
 
 export default function EnvelopeDetailScreen() {
@@ -83,7 +109,33 @@ export default function EnvelopeDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = params.id ?? '';
   const envelope = useEnvelope(id);
+  const { refreshEnvelopes } = useData();
+  const now = useNow();
   const [copied, setCopied] = useState(false);
+
+  const status: EnvelopeStatus = envelope ? effectiveStatus(envelope, now) : 'waiting';
+  const expired = status === 'expired' || (!!envelope && isExpired(envelope.expiresAt, now));
+  // A dead link must not be handed out again, so copy and share are withheld
+  // once the server's expiry has passed -- and for envelopes that are no longer
+  // waiting to be claimed, since sharing those achieves nothing.
+  const canCopyLink =
+    !!envelope &&
+    status === 'waiting' &&
+    !expired &&
+    !!envelope.shareUrl;
+
+  // `/payments/send` carries no expiry, so a brand-new envelope can arrive
+  // without one. Re-read the history once to pick up the server's `expiry_at`.
+  // The ref keeps this to one attempt per envelope: a successful refresh
+  // returns fresh objects every time, so a plain dependency check would refetch
+  // forever if the backend never publishes one.
+  const expirySyncFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!envelope || envelope.expiresAt) return;
+    if (expirySyncFor.current === envelope.id) return;
+    expirySyncFor.current = envelope.id;
+    void refreshEnvelopes();
+  }, [envelope, refreshEnvelopes]);
 
   useEffect(() => {
     if (!copied) return;
@@ -91,15 +143,19 @@ export default function EnvelopeDetailScreen() {
     return () => clearTimeout(timer);
   }, [copied]);
 
+  useEffect(() => {
+    if (expired) setCopied(false);
+  }, [expired]);
+
   const handleCopy = useCallback(async () => {
-    if (!envelope) return;
+    if (!envelope || !canCopyLink) return;
     await Clipboard.setStringAsync(envelope.shareUrl);
     haptics.success();
     setCopied(true);
-  }, [envelope]);
+  }, [canCopyLink, envelope]);
 
   const handleShare = useCallback(async () => {
-    if (!envelope) return;
+    if (!envelope || !canCopyLink) return;
     haptics.medium();
     const message = `I've sent you an Envelope worth ${formatMoney(envelope.amount)}. Open this link to claim it:\n\n${envelope.shareUrl}`;
     try {
@@ -110,7 +166,7 @@ export default function EnvelopeDetailScreen() {
     } catch {
       // User dismissed the share sheet.
     }
-  }, [envelope]);
+  }, [canCopyLink, envelope]);
 
   const goBack = () =>
     router.canGoBack() ? router.back() : router.replace('/(tabs)/envelopes');
@@ -153,8 +209,8 @@ export default function EnvelopeDetailScreen() {
     );
   }
 
-  const currentStage = ORDER[envelope.status];
-  const isLive = envelope.status === 'waiting' || envelope.status === 'claimed';
+  const currentStage = ORDER[status];
+  const showCountdown = (status === 'waiting' || status === 'claimed') && !expired;
 
   return (
     <View style={styles.screen}>
@@ -172,27 +228,27 @@ export default function EnvelopeDetailScreen() {
           <Card style={styles.hero}>
             <DigitalEnvelope
               size={148}
-              state={envelopeState(envelope)}
+              state={visualState(status)}
               intensity={0.6}
-              sealed={envelope.status !== 'expired' && envelope.status !== 'failed'}
+              sealed={status !== 'expired' && status !== 'failed'}
             />
             <Text style={styles.amount}>{formatMoney(envelope.amount)}</Text>
             <View style={styles.badgeRow}>
-              <StatusBadge status={envelope.status} />
-              {isLive ? (
+              <StatusBadge status={status} />
+              {showCountdown ? (
                 <View style={styles.countdownPill}>
                   <Icon name="clock" size={12} color={colors.textSecondary} />
                   <Text style={styles.countdownText}>
-                    {countdownLabel(envelope.expiresAt)}
+                    {countdownLabel(envelope.expiresAt, now)}
                   </Text>
                 </View>
               ) : null}
             </View>
-            <Text style={styles.statusText}>{statusDescription[envelope.status]}</Text>
+            <Text style={styles.statusText}>{statusDescription[status]}</Text>
           </Card>
         </Animated.View>
 
-        {envelope.status === 'waiting' && envelope.shareUrl ? (
+        {canCopyLink ? (
           <Animated.View entering={FadeIn.delay(80).duration(380)} style={styles.section}>
             <GroupLabel>Claim link</GroupLabel>
             <Card>
@@ -226,12 +282,34 @@ export default function EnvelopeDetailScreen() {
                 Anyone with this link can claim the envelope. Share it only with the person
                 you are paying.
               </Text>
+              <Text style={styles.linkExpiry}>
+                {envelope.expiresAt
+                  ? `Link stops working ${formatDateLong(envelope.expiresAt)} · ${formatTime(envelope.expiresAt)}`
+                  : 'Confirming the expiry time for this link.'}
+              </Text>
               <PrimaryButton
                 label="Share envelope"
                 onPress={handleShare}
                 icon={<Icon name="share" size={18} color={colors.onPrimary} strokeWidth={2.1} />}
                 style={styles.shareButton}
               />
+            </Card>
+          </Animated.View>
+        ) : null}
+
+        {expired ? (
+          <Animated.View entering={FadeIn.delay(80).duration(380)} style={styles.section}>
+            <GroupLabel>Claim link</GroupLabel>
+            <Card>
+              <View style={styles.linkRow}>
+                <Icon name="lock" size={16} color={colors.textMuted} />
+                <Text style={styles.linkText}>Link no longer available</Text>
+              </View>
+              <Text style={styles.linkHint}>
+                {envelope.expiresAt
+                  ? `This link expired on ${formatDateLong(envelope.expiresAt)} at ${formatTime(envelope.expiresAt)}, so it can no longer be copied or shared. Nobody claimed it, and the money never left your wallet.`
+                  : 'This link has expired, so it can no longer be copied or shared. Nobody claimed it, and the money never left your wallet.'}
+              </Text>
             </Card>
           </Animated.View>
         ) : null}
@@ -243,14 +321,12 @@ export default function EnvelopeDetailScreen() {
               const stageIndex = index;
               const done = stageIndex < currentStage;
               const active = stageIndex === currentStage;
-              const failed =
-                envelope.status === 'failed' && stageIndex === currentStage;
-              const expiredHere =
-                envelope.status === 'expired' && stageIndex === currentStage;
+              const failed = status === 'failed' && stageIndex === currentStage;
+              const expiredHere = status === 'expired' && stageIndex === currentStage;
               const terminalBlocked =
-                (envelope.status === 'expired' || envelope.status === 'failed') &&
+                (status === 'expired' || status === 'failed') &&
                 stageIndex > currentStage;
-              const completedFinal = active && envelope.status === 'completed';
+              const completedFinal = active && status === 'completed';
 
               const dotColor = failed
                 ? colors.error
@@ -325,9 +401,11 @@ export default function EnvelopeDetailScreen() {
                         The payment could not be completed. No money was moved.
                       </Text>
                     ) : null}
-                    {expiredHere ? (
+            {expiredHere ? (
                       <Text style={styles.timelineMeta}>
-                        Unclaimed before expiry. No money was moved.
+                        {envelope.expiresAt
+                          ? `Unclaimed before expiry on ${formatDateLong(envelope.expiresAt)} at ${formatTime(envelope.expiresAt)}. No money was moved.`
+                          : 'Unclaimed before expiry. No money was moved.'}
                       </Text>
                     ) : null}
                   </View>
@@ -347,7 +425,11 @@ export default function EnvelopeDetailScreen() {
             />
             <ListRow
               title="Expires"
-              value={`${formatDateLong(envelope.expiresAt)} · ${formatTime(envelope.expiresAt)}`}
+              value={
+                envelope.expiresAt
+                  ? `${formatDateLong(envelope.expiresAt)} · ${formatTime(envelope.expiresAt)}`
+                  : 'Not published yet'
+              }
             />
             {envelope.recipientName || envelope.recipientPhone ? (
               <ListRow
@@ -479,6 +561,12 @@ const createStyles = (colors: Palette) =>
       ...type.meta,
       color: colors.textMuted,
       marginTop: spacing.md,
+    },
+    linkExpiry: {
+      ...type.meta,
+      fontFamily: fontFamily.semibold,
+      color: colors.textSecondary,
+      marginTop: spacing.sm,
     },
     shareButton: {
       marginTop: spacing.lg,

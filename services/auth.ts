@@ -1,14 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { USE_MOCKS } from '@/constants/config';
-import { delay } from '@/utils/async';
 import { request } from './http';
-import { mockProfile } from './mockData';
 import {
   clearTokens,
   loadTokens,
   saveTokens,
 } from './tokenManager';
-import { maskPhone } from '@/utils/format';
 import type {
   AuthTokens,
   LoginPayload,
@@ -27,27 +23,6 @@ export type AuthSession = {
   tokens: AuthTokens;
   profile: Profile;
 };
-
-/**
- * Local demo credentials accepted while the backend is not connected.
- * In production these are validated by FastAPI.
- */
-const DEMO_PHONE = '0245634567';
-const DEMO_PASSWORD = 'envelope';
-
-function isValidPhone(phone: string): boolean {
-  const digits = phone.replace(/\D/g, '');
-  return digits.length >= 10 && digits.length <= 15;
-}
-
-function tokensFor(phone: string): AuthTokens {
-  const digits = phone.replace(/\D/g, '');
-  return {
-    accessToken: `demo-access-token.${digits}.${Date.now()}`,
-    refreshToken: null,
-    tokenType: 'Bearer',
-  };
-}
 
 function initialsFrom(fullName: string): string {
   return fullName
@@ -79,6 +54,9 @@ function profileFrom(
     email,
     phone,
     initials: initialsFrom(fullName),
+    // A fallback built from the sign-up form has nothing to say about
+    // verification, so it stays false until `/users/me` confirms otherwise.
+    isVerified: false,
   };
 }
 
@@ -90,6 +68,7 @@ function profileFromWire(me: MeResponse): Profile {
     email: me.email ?? '',
     phone: me.phone_number,
     initials: initialsFrom(me.full_name),
+    isVerified: me.is_verified === true,
   };
 }
 
@@ -119,7 +98,10 @@ export const authService = {
         AsyncStorage.getItem(PROFILE_KEY),
       ]);
       if (!tokens || !profileRaw) return null;
-      const profile = JSON.parse(profileRaw) as Profile;
+      const stored = JSON.parse(profileRaw) as Profile;
+      // Profiles persisted before `is_verified` existed have no such field, so
+      // it is filled in here rather than read as `undefined` all over the app.
+      const profile: Profile = { ...stored, isVerified: stored.isVerified === true };
       return { tokens, profile };
     } catch {
       return null;
@@ -127,21 +109,6 @@ export const authService = {
   },
 
   async login(payload: LoginPayload): Promise<AuthSession> {
-    if (USE_MOCKS) {
-      await delay(900);
-      if (!isValidPhone(payload.phone)) {
-        throw new Error('Enter a valid MTN MoMo number.');
-      }
-      // Any well-formed number is accepted in demo mode; the seeded profile
-      // stands in for the real MTN MoMo account.
-      const session: AuthSession = {
-        tokens: tokensFor(payload.phone),
-        profile: mockProfile,
-      };
-      await authService.persist(session);
-      return session;
-    }
-
     const body: LoginRequestBody = {
       phone_number: payload.phone,
       password: payload.password,
@@ -169,29 +136,6 @@ export const authService = {
   },
 
   async register(payload: RegisterPayload): Promise<AuthSession> {
-    if (USE_MOCKS) {
-      await delay(1100);
-      if (!isValidPhone(payload.phone)) {
-        throw new Error('Enter a valid MTN MoMo number.');
-      }
-      if (payload.password.length < 6) {
-        throw new Error('Password must be at least 6 characters.');
-      }
-      if (payload.password !== payload.confirmPassword) {
-        throw new Error('Passwords do not match.');
-      }
-      const session: AuthSession = {
-        tokens: tokensFor(payload.phone),
-        profile: profileFrom(
-          payload.fullName.trim(),
-          payload.email.trim(),
-          payload.phone,
-        ),
-      };
-      await authService.persist(session);
-      return session;
-    }
-
     const email = payload.email.trim();
 
     const body: RegisterRequestBody = {
@@ -246,10 +190,4 @@ export const authService = {
     await clearTokens();
     await AsyncStorage.removeItem(PROFILE_KEY);
   },
-};
-
-export const demoCredentials = {
-  phone: DEMO_PHONE,
-  password: DEMO_PASSWORD,
-  masked: maskPhone(DEMO_PHONE),
 };
