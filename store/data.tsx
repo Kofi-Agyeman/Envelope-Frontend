@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { AppState } from 'react-native';
 import * as api from '@/services/api';
 import { useAuth } from './auth';
 import type { ActivityEvent, Balance, Envelope } from '@/types';
@@ -61,6 +62,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loadingEnvelopes, setLoadingEnvelopes] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const inFlight = useRef(false);
+  const refreshInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const appState = useRef(AppState.currentState);
+  const lastRefresh = useRef<number>(0);
+
+  const ACTIVE_STATUSES: Envelope['status'][] = ['waiting', 'claimed', 'processing'];
+
+  // Adapt polling interval when envelope statuses change
+  useEffect(() => {
+    if (status !== 'signed-in') return;
+    if (!refreshInterval.current) return;
+    const intervalMs = envelopes.some((e) => ACTIVE_STATUSES.includes(e.status)) ? 10000 : 30000;
+    // clear and recreate to adjust interval
+    clearInterval(refreshInterval.current);
+    refreshInterval.current = setInterval(() => {
+      void (async () => {
+        if (inFlight.current) return;
+        inFlight.current = true;
+        try {
+          await Promise.all([refreshBalance(), refreshEnvelopes(), refreshActivity()]);
+        } finally {
+          inFlight.current = false;
+          lastRefresh.current = Date.now();
+        }
+      })();
+    }, intervalMs);
+  }, [envelopes, status]);
 
   const refreshBalance = useCallback(async () => {
     setLoadingBalance(true);
@@ -103,6 +130,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await Promise.all([refreshBalance(), refreshEnvelopes(), refreshActivity()]);
     } finally {
       inFlight.current = false;
+      lastRefresh.current = Date.now();
     }
   }, [refreshBalance, refreshEnvelopes, refreshActivity]);
 
@@ -128,9 +156,40 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Wait for the session to resolve so the first load is not unauthenticated.
-    if (status !== 'signed-in') return;
+    if (status !== 'signed-in') {
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+        refreshInterval.current = null;
+      }
+      return;
+    }
     void refreshAll();
-  }, [refreshAll, status]);
+
+    const intervalMs = envelopes.some((e) => ACTIVE_STATUSES.includes(e.status)) ? 10000 : 30000;
+
+    if (refreshInterval.current) {
+      clearInterval(refreshInterval.current);
+    }
+
+    refreshInterval.current = setInterval(() => {
+      void refreshAll();
+    }, intervalMs);
+
+    const sub = AppState.addEventListener('change', (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        void refreshAll();
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      sub.remove();
+      if (refreshInterval.current) {
+        clearInterval(refreshInterval.current);
+        refreshInterval.current = null;
+      }
+    };
+  }, [refreshAll, status, envelopes]);
 
   const value = useMemo<DataState>(
     () => ({
