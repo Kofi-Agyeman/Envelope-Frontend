@@ -7,6 +7,8 @@ import {
 } from './tokenManager';
 import type {
   AuthTokens,
+  ForgotPasswordPayload,
+  ForgotPasswordResponse,
   LoginPayload,
   LoginRequestBody,
   MeResponse,
@@ -175,6 +177,15 @@ export const authService = {
     const session: AuthSession = { tokens, profile };
     await authService.persist(session);
     return session;
+  },
+
+  async forgotPassword(payload: ForgotPasswordPayload): Promise<ForgotPasswordResponse> {
+    return request<ForgotPasswordResponse>('/auth/ForgotPassword', {
+      method: 'POST',
+      body: { email: payload.email.trim() },
+      // No session exists yet, so a 401 must not trigger a token refresh.
+      retryOnUnauthorized: false,
+    });
   },
 
   async persist(session: AuthSession): Promise<void> {

@@ -186,6 +186,19 @@ export type RegisterPayload = {
   confirmPassword: string;
 };
 
+/** `POST /api/auth/ForgotPassword` */
+export type ForgotPasswordPayload = {
+  email: string;
+};
+
+export type ForgotPasswordRequestBody = {
+  email: string;
+};
+
+export type ForgotPasswordResponse = {
+  message: string;
+};
+
 export type CreateEnvelopePayload = {
   amount: number;
   currency?: string;

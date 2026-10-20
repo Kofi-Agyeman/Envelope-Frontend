@@ -176,7 +176,15 @@ export default function ProfileScreen() {
             title="MTN MoMo wallet"
             value={profile ? maskPhone(profile.phone) : undefined}
           />
-          <ListRow icon="lock" title="Password" subtitle="Change your sign-in password" />
+          <ListRow
+            icon="lock"
+            title="Password"
+            subtitle="Change your sign-in password"
+            onPress={() => {
+              haptics.light();
+              void router.push('/(auth)/change-password');
+            }}
+          />
         </ListGroup>
       </View>
 

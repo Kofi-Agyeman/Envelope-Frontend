@@ -115,7 +115,7 @@ export default function LoginScreen() {
               }
             />
             <Pressable
-              onPress={() => setError('Password reset will be available once your account is linked to MTN MoMo.')}
+              onPress={() => router.push('/(auth)/forgot-password')}
               accessibilityRole="button"
               hitSlop={8}
               style={styles.forgot}

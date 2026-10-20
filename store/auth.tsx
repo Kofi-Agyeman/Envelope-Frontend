@@ -13,7 +13,7 @@ import {
   onSessionExpired,
   onTokensChanged,
 } from '@/services/tokenManager';
-import type { LoginPayload, Profile, RegisterPayload } from '@/types';
+import type { ForgotPasswordPayload, LoginPayload, Profile, RegisterPayload } from '@/types';
 import type { UserPreferences } from '@/types';
 
 const PREFS_KEY = 'envelope.preferences';
@@ -33,6 +33,7 @@ type AuthState = {
   preferences: UserPreferences;
   signIn: (payload: LoginPayload) => Promise<void>;
   signUp: (payload: RegisterPayload) => Promise<void>;
+  forgotPassword: (payload: ForgotPasswordPayload) => Promise<void>;
   signOut: () => Promise<void>;
   completeOnboarding: () => void;
   setPreference: <K extends keyof UserPreferences>(
@@ -134,6 +135,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySession],
   );
 
+  const forgotPassword = useCallback(
+    async (payload: ForgotPasswordPayload) => {
+      await authService.forgotPassword(payload);
+    },
+    [],
+  );
+
   const signOut = useCallback(async () => {
     await authService.logout();
     setProfile(null);
@@ -164,6 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       preferences,
       signIn,
       signUp,
+      forgotPassword,
       signOut,
       completeOnboarding,
       setPreference,
@@ -175,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       preferences,
       signIn,
       signUp,
+      forgotPassword,
       signOut,
       completeOnboarding,
       setPreference,
