@@ -8,7 +8,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Field } from '@/components/Field';
@@ -47,9 +47,6 @@ export default function ChangePasswordScreen() {
       await forgotPassword({ email: email.trim() });
       haptics.success();
       setSent(true);
-      router.push(
-        `/(auth)/reset-sent?email=${encodeURIComponent(email.trim())}`,
-      );
     } catch (e) {
       haptics.error();
       setError(
@@ -143,14 +140,6 @@ export default function ChangePasswordScreen() {
           </>
         )}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Remembered your password?</Text>
-          <Link href="/(auth)/login" asChild>
-            <Pressable accessibilityRole="link" hitSlop={8}>
-              <Text style={styles.footerLink}>Sign in</Text>
-            </Pressable>
-          </Link>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );

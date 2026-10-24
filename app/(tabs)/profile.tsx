@@ -182,7 +182,7 @@ export default function ProfileScreen() {
             subtitle="Change your sign-in password"
             onPress={() => {
               haptics.light();
-              void router.push('/(auth)/change-password');
+              void router.push('/change-password');
             }}
           />
         </ListGroup>

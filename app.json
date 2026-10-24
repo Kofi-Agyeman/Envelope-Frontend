@@ -21,6 +21,7 @@
     "android": {
       "package": "app.envelope.sender",
       "edgeToEdgeEnabled": true,
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#090A0F",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -33,9 +34,18 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6f3d5d20-430a-4de1-b6f3-b78ee9590ce6"
+      }
     }
   }
 }

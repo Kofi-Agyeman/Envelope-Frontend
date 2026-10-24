@@ -56,7 +56,8 @@ function AppNavigator() {
         name="envelope/[id]"
         options={{ animation: 'slide_from_bottom' }}
       />
-      <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="account" options={{ animation: 'slide_from_right' }} />
+        <Stack.Screen name="change-password" options={{ animation: 'slide_from_right' }} />
     </Stack>
   );
 }

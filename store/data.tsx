@@ -10,6 +10,10 @@ import React, {
 import { AppState } from 'react-native';
 import * as api from '@/services/api';
 import { useAuth } from './auth';
+import {
+  notifyEnvelopeCompleted,
+  requestNotificationPermission,
+} from '@/utils/notifications';
 import type { ActivityEvent, Balance, Envelope } from '@/types';
 
 type DataState = {
@@ -104,7 +108,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoadingEnvelopes(true);
     try {
       const server = await api.getEnvelopes(token);
-      setEnvelopes((prev) => mergeEnvelopes(server, prev));
+      setEnvelopes((prev) => {
+        for (const next of server) {
+          const before = prev.find((p) => sameEnvelope(p, next));
+          if (next.status === 'completed' && (!before || before.status !== 'completed')) {
+            void notifyEnvelopeCompleted(next);
+          }
+        }
+        return mergeEnvelopes(server, prev);
+      });
     } catch {
       // Keep previously loaded list.
     } finally {
@@ -177,7 +189,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const sub = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        void refreshAll();
+    void refreshAll();
+    void requestNotificationPermission();
       }
       appState.current = nextAppState;
     });
