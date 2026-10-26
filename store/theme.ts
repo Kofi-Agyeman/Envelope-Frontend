@@ -11,7 +11,6 @@ import { StyleSheet, useColorScheme } from 'react-native';
 import {
   darkColors,
   lightColors,
-  makeGradients,
   makeShadows,
   makeStatusColors,
   type Palette,
@@ -26,7 +25,6 @@ type ThemeState = {
   mode: ThemeMode;
   scheme: ResolvedScheme;
   colors: Palette;
-  gradients: ReturnType<typeof makeGradients>;
   shadows: ReturnType<typeof makeShadows>;
   statusColors: ReturnType<typeof makeStatusColors>;
   setMode: (mode: ThemeMode) => void;
@@ -88,8 +86,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       mode: effectiveMode,
       scheme: effectiveScheme,
       colors,
-      gradients: makeGradients(effectiveScheme),
-      shadows: makeShadows(colors, effectiveScheme),
+      shadows: makeShadows(effectiveScheme),
       statusColors: makeStatusColors(colors),
       setMode,
       cycleMode,

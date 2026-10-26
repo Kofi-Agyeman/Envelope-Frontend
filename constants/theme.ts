@@ -7,6 +7,9 @@ export type ThemeMode = 'light' | 'dark' | 'system';
  * `primary` is a fill colour. Anywhere yellow would sit on a surface as text
  * or an icon, use `accent`, which is tuned for contrast per scheme (bright
  * yellow on white fails WCAG).
+ *
+ * Every surface is a flat fill: no gradients, glows or coloured shadows.
+ * Depth comes from borders and one restrained neutral card shadow.
  */
 export const lightColors = {
   background: '#F5F6F8',
@@ -43,7 +46,10 @@ export const lightColors = {
   borderStrong: '#D3D7DE',
   overlay: 'rgba(18, 21, 28, 0.45)',
 
-  glow: 'rgba(255, 203, 5, 0.28)',
+  /** Flat fills for the envelope illustration. */
+  envelopeBody: '#FFFFFF',
+  envelopeFlap: '#F1F2F5',
+  envelopeOutline: '#C9CED7',
 };
 
 export type Palette = typeof lightColors;
@@ -82,7 +88,9 @@ export const darkColors: Palette = {
   borderStrong: '#2E333D',
   overlay: 'rgba(0, 0, 0, 0.6)',
 
-  glow: 'rgba(255, 203, 5, 0.22)',
+  envelopeBody: '#2A2F39',
+  envelopeFlap: '#343A46',
+  envelopeOutline: '#4A5160',
 };
 
 export type StatusKey =
@@ -102,30 +110,7 @@ export const makeStatusColors = (c: Palette): Record<StatusKey, { fg: string; bg
   failed: { fg: c.error, bg: c.errorMuted },
 });
 
-export const makeGradients = (scheme: 'light' | 'dark') =>
-  scheme === 'dark'
-    ? {
-        hero: ['#1B1F27', '#15181E'] as const,
-        walletCard: ['#2A2F3A', '#16191F'] as const,
-        envelopeBody: ['#2A2F3A', '#1F232B'] as const,
-        envelopeFlap: ['#383E4B', '#2B303A'] as const,
-        primaryButton: ['#FFCB05', '#FFCB05'] as const,
-        primaryButtonPressed: ['#E5B500', '#E5B500'] as const,
-        envelopeSeal: ['#FFD84D', '#E5B500'] as const,
-        screenFade: ['#111419', '#0C0E12'] as const,
-      }
-    : {
-        hero: ['#FFFFFF', '#FFFFFF'] as const,
-        walletCard: ['#262B36', '#0F1217'] as const,
-        envelopeBody: ['#FFFFFF', '#F2F3F6'] as const,
-        envelopeFlap: ['#FAFAFB', '#E8EAEF'] as const,
-        primaryButton: ['#FFCB05', '#FFCB05'] as const,
-        primaryButtonPressed: ['#E5B500', '#E5B500'] as const,
-        envelopeSeal: ['#FFD84D', '#E5B500'] as const,
-        screenFade: ['#FFFFFF', '#F5F6F8'] as const,
-      };
-
-export const makeShadows = (c: Palette, scheme: 'light' | 'dark') => ({
+export const makeShadows = (scheme: 'light' | 'dark') => ({
   /** Resting card elevation: barely there in light mode, absent in dark. */
   card: {
     shadowColor: '#0B0D12',
@@ -133,19 +118,5 @@ export const makeShadows = (c: Palette, scheme: 'light' | 'dark') => ({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
     elevation: scheme === 'dark' ? 0 : 1,
-  },
-  soft: {
-    shadowColor: '#0B0D12',
-    shadowOpacity: scheme === 'dark' ? 0.45 : 0.14,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8,
-  },
-  glow: {
-    shadowColor: c.primary,
-    shadowOpacity: scheme === 'dark' ? 0.3 : 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
   },
 });

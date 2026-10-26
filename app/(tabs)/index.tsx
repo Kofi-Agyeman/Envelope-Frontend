@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AmountSlider } from '@/components/AmountSlider';
 import { AmountDisplay } from '@/components/AmountDisplay';
 import { BalanceCard } from '@/components/BalanceCard';
 import { EnvelopeCard } from '@/components/EnvelopeCard';
+import { KeyboardSafeScrollView } from '@/components/KeyboardSafeScrollView';
 import { PresetChips } from '@/components/PresetChips';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -62,7 +63,7 @@ export default function HomeScreen() {
   }, [preferences.hideBalance, setPreference]);
 
   return (
-    <ScrollView
+    <KeyboardSafeScrollView
       style={styles.screen}
       contentContainerStyle={[
         screenContent,
@@ -173,7 +174,7 @@ export default function HomeScreen() {
           ))}
         </ListGroup>
       )}
-    </ScrollView>
+    </KeyboardSafeScrollView>
   );
 }
 

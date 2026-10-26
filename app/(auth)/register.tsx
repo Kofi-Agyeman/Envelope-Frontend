@@ -1,17 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Field, PasswordToggle } from '@/components/Field';
+import { KeyboardSafeScrollView } from '@/components/KeyboardSafeScrollView';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Icon } from '@/components/Icon';
 import { LogoMark } from '@/components/Logo';
@@ -91,151 +84,147 @@ export default function RegisterScreen() {
   }, [canSubmit, confirm, email, fullName, loading, password, phone, router, signUp]);
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardSafeScrollView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + spacing.lg, paddingBottom: insets.bottom + spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.nav}>
-          <Pressable
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            style={styles.back}
-          >
-            <Icon name="chevronBack" size={20} color={colors.text} />
-          </Pressable>
-          <LogoMark size={30} />
-          <View style={styles.navSpacer} />
-        </View>
+      <View style={styles.nav}>
+        <Pressable
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/(auth)/login'))}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={styles.back}
+        >
+          <Icon name="chevronBack" size={20} color={colors.text} />
+        </Pressable>
+        <LogoMark size={30} />
+        <View style={styles.navSpacer} />
+      </View>
 
-        <Animated.View entering={FadeIn.duration(360)} style={styles.headlineBlock}>
-          <Text style={styles.title} accessibilityRole="header">
-            Create your account
-          </Text>
-          <Text style={styles.subtitle}>
-            Your MTN MoMo number becomes your Envelope wallet. It takes under a minute.
-          </Text>
-        </Animated.View>
+      <Animated.View entering={FadeIn.duration(360)} style={styles.headlineBlock}>
+        <Text style={styles.title} accessibilityRole="header">
+          Create your account
+        </Text>
+        <Text style={styles.subtitle}>
+          Your MTN MoMo number becomes your Envelope wallet. It takes under a minute.
+        </Text>
+      </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(80).duration(440)} style={styles.form}>
-          <Field
-            label="Full name"
-            value={fullName}
-            onChangeText={setFullName}
-            placeholder="Kofi Agyeman"
-            autoComplete="name"
-            autoCapitalize="words"
-            testID="register-name"
-          />
-          <Field
-            label="MTN MoMo number"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="024 563 4567"
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            prefix="+233"
-            hint="We never share your number with recipients."
-            testID="register-phone"
-          />
-          <Field
-            label="Email (optional)"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoComplete="email"
-            error={emailValid ? null : 'Enter a valid email address.'}
-            testID="register-email"
-          />
+      <Animated.View entering={FadeInDown.delay(80).duration(440)} style={styles.form}>
+        <Field
+          label="Full name"
+          value={fullName}
+          onChangeText={setFullName}
+          placeholder="Kofi Agyeman"
+          autoComplete="name"
+          autoCapitalize="words"
+          testID="register-name"
+        />
+        <Field
+          label="MTN MoMo number"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="024 563 4567"
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          prefix="+233"
+          hint="We never share your number with recipients."
+          testID="register-phone"
+        />
+        <Field
+          label="Email (optional)"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoComplete="email"
+          error={emailValid ? null : 'Enter a valid email address.'}
+          testID="register-email"
+        />
 
-          <View style={styles.passwordBlock}>
-            <Field
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="At least 6 characters"
-              secureTextEntry={secure}
-              autoComplete="new-password"
-              testID="register-password"
-              accessory={
-                <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
-              }
-            />
-            {password.length > 0 ? (
-              <View style={styles.strengthRow}>
-                <View style={styles.strengthBars}>
-                  {[0, 1, 2, 3].map((i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.strengthBar,
-                        {
-                          backgroundColor:
-                            i < strength ? passwordColor(strength, colors) : colors.border,
-                        },
-                      ]}
-                    />
-                  ))}
-                </View>
-                <Text style={[styles.strengthLabel, { color: passwordColor(strength, colors) }]}>
-                  {PASSWORD_LABELS[strength]}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-
+        <View style={styles.passwordBlock}>
           <Field
-            label="Confirm password"
-            value={confirm}
-            onChangeText={setConfirm}
-            placeholder="Repeat your password"
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="At least 6 characters"
             secureTextEntry={secure}
             autoComplete="new-password"
-            error={mismatch ? 'Passwords do not match.' : null}
-            testID="register-confirm"
+            testID="register-password"
+            accessory={
+              <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
+            }
           />
-
-          {error ? (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
-              <Icon name="alert" size={16} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </Animated.View>
+          {password.length > 0 ? (
+            <View style={styles.strengthRow}>
+              <View style={styles.strengthBars}>
+                {[0, 1, 2, 3].map((i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.strengthBar,
+                      {
+                        backgroundColor:
+                          i < strength ? passwordColor(strength, colors) : colors.border,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+              <Text style={[styles.strengthLabel, { color: passwordColor(strength, colors) }]}>
+                {PASSWORD_LABELS[strength]}
+              </Text>
+            </View>
           ) : null}
-
-          <PrimaryButton
-            label="Create account"
-            onPress={handleSubmit}
-            loading={loading}
-            loadingLabel="Creating account…"
-            disabled={!canSubmit}
-            style={styles.submit}
-          />
-
-          <Text style={styles.legal}>
-            By continuing you agree to the Envelope Terms of Service and Privacy Policy.
-          </Text>
-        </Animated.View>
-
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Already have an account?</Text>
-          <Link href="/(auth)/login" asChild>
-            <Pressable accessibilityRole="link" hitSlop={8}>
-              <Text style={styles.footerLink}>Log in</Text>
-            </Pressable>
-          </Link>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        <Field
+          label="Confirm password"
+          value={confirm}
+          onChangeText={setConfirm}
+          placeholder="Repeat your password"
+          secureTextEntry={secure}
+          autoComplete="new-password"
+          error={mismatch ? 'Passwords do not match.' : null}
+          testID="register-confirm"
+        />
+
+        {error ? (
+          <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
+            <Icon name="alert" size={16} color={colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </Animated.View>
+        ) : null}
+
+        <PrimaryButton
+          label="Create account"
+          onPress={handleSubmit}
+          loading={loading}
+          loadingLabel="Creating account…"
+          disabled={!canSubmit}
+          style={styles.submit}
+        />
+
+        <Text style={styles.legal}>
+          By continuing you agree to the Envelope Terms of Service and Privacy Policy.
+        </Text>
+      </Animated.View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Already have an account?</Text>
+        <Link href="/(auth)/login" asChild>
+          <Pressable accessibilityRole="link" hitSlop={8}>
+            <Text style={styles.footerLink}>Log in</Text>
+          </Pressable>
+        </Link>
+      </View>
+    </KeyboardSafeScrollView>
   );
 }
 

@@ -18,7 +18,6 @@ type Slide = {
   title: string;
   body: string;
   state: EnvelopeVisualState;
-  intensity: number;
   sealed: boolean;
   points: { icon: IconName; text: string }[];
 };
@@ -29,7 +28,6 @@ const SLIDES: Slide[] = [
     title: 'Send money without asking for their number',
     body: 'No awkward requests. You decide how much, and we handle the rest.',
     state: 'idle',
-    intensity: 0.3,
     sealed: false,
     points: [
       { icon: 'shield', text: 'Works with your MTN MoMo wallet' },
@@ -41,7 +39,6 @@ const SLIDES: Slide[] = [
     title: 'Choose an amount and get a private link',
     body: 'Each envelope is sealed with exactly the amount you picked.',
     state: 'waiting',
-    intensity: 0.6,
     sealed: true,
     points: [
       { icon: 'link', text: 'Share the link on WhatsApp, SMS or anywhere' },
@@ -53,7 +50,6 @@ const SLIDES: Slide[] = [
     title: 'Money moves only when it is claimed',
     body: 'The recipient enters their MoMo number, and only then is the payment sent.',
     state: 'completed',
-    intensity: 0.8,
     sealed: true,
     points: [
       { icon: 'wallet', text: 'Funds stay in your wallet until then' },
@@ -130,7 +126,6 @@ export default function OnboardingScreen() {
           key={index}
           size={envelopeSize}
           state={slide.state}
-          intensity={slide.intensity}
           sealed={slide.sealed}
         />
       </View>

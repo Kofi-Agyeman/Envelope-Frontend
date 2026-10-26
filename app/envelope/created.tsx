@@ -1,18 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   FadeIn,
   FadeInDown,
-  useDerivedValue,
   useSharedValue,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { DigitalEnvelope } from '@/components/DigitalEnvelope';
-import { Glow } from '@/components/Glow';
 import { Icon } from '@/components/Icon';
 import { MoneySafetyNote } from '@/components/MoneySafetyNote';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -61,7 +59,6 @@ export default function CreateEnvelopeScreen() {
   const sent = useRef(false);
   const sending = useRef(false);
 
-  const aura = useSharedValue(0);
   const checkScale = useSharedValue(0);
 
   useEffect(() => {
@@ -79,7 +76,6 @@ export default function CreateEnvelopeScreen() {
     setError(null);
     created.current = null;
     checkScale.value = 0;
-    aura.value = 0;
 
     if (!token) {
       setError('Your session expired. Please sign in again.');
@@ -109,7 +105,6 @@ export default function CreateEnvelopeScreen() {
         duration: 420,
         easing: Easing.out(Easing.back(2)),
       });
-      aura.value = withTiming(0.45, { duration: 460 });
       setPhase('ready');
     } catch (e) {
       sending.current = false;
@@ -124,7 +119,7 @@ export default function CreateEnvelopeScreen() {
       );
       setPhase('error');
     }
-  }, [addEnvelope, amount, aura, checkScale, token]);
+  }, [addEnvelope, amount, checkScale, token]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -135,7 +130,7 @@ export default function CreateEnvelopeScreen() {
     // so listing it would re-arm this effect every time the access token is
     // refreshed -- which fires a second POST /payments/send and creates a
     // duplicate transaction. `attempt` is the only intended trigger, and the
-    // `fired` ref below is the real guard against duplicate sends.
+    // `sent` / `sending` refs above are the real guard against duplicate sends.
   }, [attempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRetry = useCallback(() => {
@@ -145,9 +140,6 @@ export default function CreateEnvelopeScreen() {
     sent.current = false;
     setAttempt((a) => a + 1);
   }, []);
-
-  const auraScale = useDerivedValue(() => 0.8 + aura.value * 0.35, [aura]);
-  const auraOpacity = useDerivedValue(() => aura.value, [aura]);
 
   const handleShare = useCallback(() => {
     const envelope = created.current;
@@ -170,25 +162,19 @@ export default function CreateEnvelopeScreen() {
     >
       <View style={styles.center}>
         <View style={styles.envelopeStage}>
-          <Glow
-            size={320}
-            color={phase === 'error' ? colors.error : colors.primary}
-            intensity={0.5}
-            opacity={auraOpacity}
-            scale={auraScale}
-            style={styles.aura}
-          />
           <DigitalEnvelope
             size={180}
             state={phase === 'ready' ? 'completed' : phase === 'error' ? 'failed' : 'creating'}
-            intensity={0.8}
             sealed={phase === 'ready'}
           />
         </View>
 
         {phase === 'creating' ? (
           <Animated.View entering={FadeIn.duration(240)} style={styles.copy}>
-            <Text style={styles.eyebrow}>Please wait</Text>
+            <View style={styles.waitRow}>
+              <ActivityIndicator size="small" color={colors.textMuted} />
+              <Text style={styles.eyebrow}>Please wait</Text>
+            </View>
             <Text style={styles.title}>Sealing your envelope</Text>
             <Text style={styles.subtitle}>
               Preparing a private link for {formatMoney(amount)}.
@@ -284,8 +270,10 @@ const createStyles = (colors: Palette) =>
       justifyContent: 'center',
       marginBottom: spacing.huge,
     },
-    aura: {
-      top: -90,
+    waitRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
     },
     copy: {
       alignItems: 'center',

@@ -229,7 +229,6 @@ export default function EnvelopeDetailScreen() {
             <DigitalEnvelope
               size={148}
               state={visualState(status)}
-              intensity={0.6}
               sealed={status !== 'expired' && status !== 'failed'}
             />
             <Text style={styles.amount}>{formatMoney(envelope.amount)}</Text>

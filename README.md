@@ -72,9 +72,9 @@ app/
 
 components/
 ├── ui.tsx                Card, ListGroup/ListRow, SegmentedControl, headers, EmptyState
-├── Logo.tsx              Brand mark + wordmark
-├── DigitalEnvelope.tsx   Reusable SVG envelope, all lifecycle states
-├── Glow.tsx              Radial-gradient halo behind the envelope
+├── Logo.tsx              Brand mark + wordmark (same geometry as the app icon)
+├── DigitalEnvelope.tsx   Flat SVG envelope, all lifecycle states
+├── KeyboardSafeScrollView.tsx  Keeps the focused input above the keyboard
 ├── AmountSlider.tsx      Gesture-driven slider with haptics
 ├── AmountDisplay.tsx     Large readout with tap-to-type
 ├── PresetChips.tsx       GH₵20/50/100/200/500
@@ -82,7 +82,7 @@ components/
 ├── EnvelopeCard.tsx      List row
 ├── StatusBadge.tsx       Status pill
 ├── QuickAction.tsx       Secondary action tile
-├── PrimaryButton.tsx     Gradient CTA with press states
+├── PrimaryButton.tsx     Solid CTA with press states
 ├── MoneySafetyNote.tsx   "Money stays in your account" reassurance
 ├── Field.tsx             Labelled auth input + password toggle
 └── Skeleton.tsx          Shimmer placeholders
@@ -111,9 +111,9 @@ a signed-in navigator.
 Light, dark, and system themes are user-selectable under **Profile → Appearance**
 and persist to `AsyncStorage` under `envelope.theme.mode`.
 
-- `constants/theme.ts` holds the two palettes plus `makeStatusColors`,
-  `makeGradients`, and `makeShadows`. These are pure functions of the palette,
-  not module-level constants, because a module-level constant would freeze one
+- `constants/theme.ts` holds the two palettes plus `makeStatusColors` and
+  `makeShadows`. These are pure functions of the palette or scheme, not
+  module-level constants, because a module-level constant would freeze one
   theme at import time.
 - `store/theme.ts` owns the resolved palette and persists the user's choice.
 - Components never import a colour constant directly. They read
@@ -371,16 +371,23 @@ consulted at runtime — link validity comes from `expiry_at` (see above).
   floating cards.
 - Buttons use sentence case and solid fills. Money uses tabular figures
   (`tabularNums`) so amounts do not jitter while the slider moves.
-- The wallet card is always the dark `ink` surface, in both themes.
-- The envelope is the visual identity. It is one reusable SVG component
-  (`DigitalEnvelope`) that reacts to amount intensity and to lifecycle status
-  (glow, pulse, seal, checkmark, red failure accent).
+- Everything is flat: no gradients, glows, coloured shadows or decorative
+  patterns. Depth comes from borders and one restrained neutral card shadow.
+- The wallet card is always the flat dark `ink` surface, in both themes.
+- The envelope is the visual identity. It is one reusable flat SVG component
+  (`DigitalEnvelope`) that reflects lifecycle status (status line, seal,
+  checkmark, muted failure accent).
+- The app icon, splash and favicon in `assets/` use the same mark as
+  `LogoMark` in `components/Logo.tsx`.
+- Screens with text inputs use `KeyboardSafeScrollView`. The app is
+  edge-to-edge on Android, so the OS no longer resizes the window for the
+  keyboard; the component handles that per platform.
 - The money-safety line sits under the primary CTA on every creation surface.
   It is a defining product guarantee, not fine print.
 - Haptics are deliberate: ticks on slider steps, light on selection, medium on
   create, success on completion. Users can disable them in Profile.
-- Decorative loops (auras, shimmer) respect the system Reduce Motion setting;
-  interaction feedback does not.
+- Decorative loops (skeleton shimmer) respect the system Reduce Motion
+  setting; interaction feedback does not.
 - The slider is an `adjustable` accessibility element with increment/decrement
   actions, and the amount can always be typed directly.
 

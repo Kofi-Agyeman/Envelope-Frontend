@@ -1,8 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
 import { Icon } from '@/components/Icon';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, tabularNums, type } from '@/constants/typography';
@@ -24,7 +22,7 @@ type Props = {
 };
 
 /**
- * Greeting row plus the wallet card. The card is always the dark brand
+ * Greeting row plus the wallet card. The card is always the flat dark brand
  * surface, in both themes, so the balance reads like a physical card.
  */
 export function BalanceCard({
@@ -37,7 +35,7 @@ export function BalanceCard({
   onAvatarPress,
   initials = 'EN',
 }: Props) {
-  const { colors, gradients, shadows } = useTheme();
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
 
   return (
@@ -65,20 +63,7 @@ export function BalanceCard({
         </View>
       </Animated.View>
 
-      <Animated.View entering={FadeIn.delay(60).duration(360)} style={[styles.card, shadows.soft]}>
-        <LinearGradient
-          colors={gradients.walletCard as unknown as [string, string]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-        {/* Concentric rings give the card texture without competing with the numbers. */}
-        <Svg width={220} height={220} style={styles.rings} pointerEvents="none">
-          <Circle cx={160} cy={60} r={60} stroke="rgba(255,255,255,0.06)" strokeWidth={1} fill="none" />
-          <Circle cx={160} cy={60} r={95} stroke="rgba(255,255,255,0.05)" strokeWidth={1} fill="none" />
-          <Circle cx={160} cy={60} r={130} stroke="rgba(255,255,255,0.04)" strokeWidth={1} fill="none" />
-        </Svg>
-
+      <Animated.View entering={FadeIn.delay(60).duration(360)} style={styles.card}>
         <View style={styles.cardTop}>
           <View style={styles.walletBrand}>
             <View style={styles.mtnMark}>
@@ -160,15 +145,9 @@ const createStyles = (colors: Palette) =>
     },
     card: {
       borderRadius: radius.xxl,
-      overflow: 'hidden',
       padding: spacing.xl,
       minHeight: 188,
       backgroundColor: colors.ink,
-    },
-    rings: {
-      position: 'absolute',
-      right: -40,
-      top: -30,
     },
     cardTop: {
       flexDirection: 'row',

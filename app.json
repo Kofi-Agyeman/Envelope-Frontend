@@ -7,12 +7,12 @@
     "icon": "./assets/icon.png",
     "scheme": "envelope",
     "userInterfaceStyle": "automatic",
-    "backgroundColor": "#090A0F",
+    "backgroundColor": "#0C0E12",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#090A0F"
+      "backgroundColor": "#0C0E12"
     },
     "ios": {
       "supportsTablet": true,
@@ -23,7 +23,7 @@
       "edgeToEdgeEnabled": true,
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#090A0F",
+        "backgroundColor": "#FFCB05",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

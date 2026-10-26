@@ -1,17 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Field, PasswordToggle } from '@/components/Field';
+import { KeyboardSafeScrollView } from '@/components/KeyboardSafeScrollView';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { Icon } from '@/components/Icon';
 import { Logo } from '@/components/Logo';
@@ -63,102 +56,98 @@ export default function LoginScreen() {
   }, [canSubmit, loading, password, phone, preferences.hasSeenOnboarding, router, signIn]);
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardSafeScrollView
       style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <ScrollView
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl },
-        ]}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Animated.View entering={FadeIn.duration(360)}>
-          <Logo size={34} />
-        </Animated.View>
+      <Animated.View entering={FadeIn.duration(360)}>
+        <Logo size={34} />
+      </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(60).duration(420)} style={styles.headlineBlock}>
-          <Text style={styles.headline} accessibilityRole="header">
-            Welcome back
-          </Text>
-          <Text style={styles.subhead}>
-            Sign in to send money with a link. No recipient number needed.
-          </Text>
-        </Animated.View>
+      <Animated.View entering={FadeInDown.delay(60).duration(420)} style={styles.headlineBlock}>
+        <Text style={styles.headline} accessibilityRole="header">
+          Welcome back
+        </Text>
+        <Text style={styles.subhead}>
+          Sign in to send money with a link. No recipient number needed.
+        </Text>
+      </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(120).duration(440)} style={styles.form}>
+      <Animated.View entering={FadeInDown.delay(120).duration(440)} style={styles.form}>
+        <Field
+          label="Phone number"
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="024 563 4567"
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          prefix="+233"
+          testID="login-phone"
+        />
+
+        <View>
           <Field
-            label="Phone number"
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="024 563 4567"
-            keyboardType="phone-pad"
-            autoComplete="tel"
-            prefix="+233"
-            testID="login-phone"
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Enter your password"
+            secureTextEntry={secure}
+            autoComplete="password"
+            onSubmitEditing={handleSubmit}
+            testID="login-password"
+            accessory={
+              <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
+            }
           />
-
-          <View>
-            <Field
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              secureTextEntry={secure}
-              autoComplete="password"
-              onSubmitEditing={handleSubmit}
-              testID="login-password"
-              accessory={
-                <PasswordToggle secure={secure} onPress={() => setSecure((s) => !s)} />
-              }
-            />
-            <Pressable
-              onPress={() => router.push('/(auth)/forgot-password')}
-              accessibilityRole="button"
-              hitSlop={8}
-              style={styles.forgot}
-            >
-              <Text style={styles.forgotText}>Forgot password?</Text>
-            </Pressable>
-          </View>
-
-          {error ? (
-            <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
-              <Icon name="alert" size={16} color={colors.error} />
-              <Text style={styles.errorText}>{error}</Text>
-            </Animated.View>
-          ) : null}
-
-          <PrimaryButton
-            label="Log in"
-            onPress={handleSubmit}
-            loading={loading}
-            loadingLabel="Signing in…"
-            disabled={!canSubmit}
-            accessibilityHint="Signs in to your Envelope account"
-          />
-        </Animated.View>
-
-        <View style={styles.footer}>
-          <View style={styles.footerRow}>
-            <Text style={styles.footerText}>New to Envelope?</Text>
-            <Link href="/(auth)/register" asChild>
-              <Pressable accessibilityRole="link" hitSlop={8}>
-                <Text style={styles.footerLink}>Create an account</Text>
-              </Pressable>
-            </Link>
-          </View>
-          <View style={styles.trust}>
-            <Icon name="shield" size={14} color={colors.textMuted} />
-            <Text style={styles.trustText}>
-              Payments are settled through MTN Mobile Money.
-            </Text>
-          </View>
+          <Pressable
+            onPress={() => router.push('/(auth)/forgot-password')}
+            accessibilityRole="button"
+            hitSlop={8}
+            style={styles.forgot}
+          >
+            <Text style={styles.forgotText}>Forgot password?</Text>
+          </Pressable>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+        {error ? (
+          <Animated.View entering={FadeIn.duration(200)} style={styles.errorBox}>
+            <Icon name="alert" size={16} color={colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </Animated.View>
+        ) : null}
+
+        <PrimaryButton
+          label="Log in"
+          onPress={handleSubmit}
+          loading={loading}
+          loadingLabel="Signing in…"
+          disabled={!canSubmit}
+          accessibilityHint="Signs in to your Envelope account"
+        />
+      </Animated.View>
+
+      <View style={styles.footer}>
+        <View style={styles.footerRow}>
+          <Text style={styles.footerText}>New to Envelope?</Text>
+          <Link href="/(auth)/register" asChild>
+            <Pressable accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.footerLink}>Create an account</Text>
+            </Pressable>
+          </Link>
+        </View>
+        <View style={styles.trust}>
+          <Icon name="shield" size={14} color={colors.textMuted} />
+          <Text style={styles.trustText}>
+            Payments are settled through MTN Mobile Money.
+          </Text>
+        </View>
+      </View>
+    </KeyboardSafeScrollView>
   );
 }
 
