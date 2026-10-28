@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   createContext,
   useCallback,
@@ -15,6 +16,15 @@ import {
   requestNotificationPermission,
 } from '@/utils/notifications';
 import type { ActivityEvent, Balance, Envelope } from '@/types';
+
+/** Per-account list of envelope ids that have already been announced. */
+const NOTIFIED_KEY = 'envelope.notified.v1:';
+/** Enough history to never re-announce, without growing forever. */
+const NOTIFIED_LIMIT = 500;
+
+const ACTIVE_STATUSES: Envelope['status'][] = ['waiting', 'claimed', 'processing'];
+const FAST_POLL_MS = 10_000;
+const SLOW_POLL_MS = 30_000;
 
 type DataState = {
   balance: Balance | null;
@@ -58,7 +68,7 @@ function mergeEnvelopes(server: Envelope[], local: Envelope[]): Envelope[] {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { token, status } = useAuth();
+  const { token, status, profile, preferences } = useAuth();
   const [balance, setBalance] = useState<Balance | null>(null);
   const [envelopes, setEnvelopes] = useState<Envelope[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
@@ -66,32 +76,62 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [loadingEnvelopes, setLoadingEnvelopes] = useState(true);
   const [loadingActivity, setLoadingActivity] = useState(true);
   const inFlight = useRef(false);
-  const refreshInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const appState = useRef(AppState.currentState);
-  const lastRefresh = useRef<number>(0);
+  const hasActive = useRef(false);
 
-  const ACTIVE_STATUSES: Envelope['status'][] = ['waiting', 'claimed', 'processing'];
+  // Notification bookkeeping, loaded once per signed-in account.
+  const notifiedFor = useRef<string | null>(null);
+  const notified = useRef<Set<string>>(new Set());
+  const isFirstSync = useRef(false);
+  const notificationsOn = useRef(preferences.pushNotifications);
+  notificationsOn.current = preferences.pushNotifications;
 
-  // Adapt polling interval when envelope statuses change
-  useEffect(() => {
-    if (status !== 'signed-in') return;
-    if (!refreshInterval.current) return;
-    const intervalMs = envelopes.some((e) => ACTIVE_STATUSES.includes(e.status)) ? 10000 : 30000;
-    // clear and recreate to adjust interval
-    clearInterval(refreshInterval.current);
-    refreshInterval.current = setInterval(() => {
-      void (async () => {
-        if (inFlight.current) return;
-        inFlight.current = true;
+  /**
+   * Announces envelopes that became completed since the last time this device
+   * looked. The announced ids are stored per account, so reopening the app
+   * does not replay the whole history. The very first sync on a device only
+   * records what is already there, without notifying.
+   */
+  const announceCompleted = useCallback(
+    async (list: Envelope[]) => {
+      if (!profile?.id) return;
+      const key = NOTIFIED_KEY + profile.id;
+
+      if (notifiedFor.current !== key) {
+        const raw = await AsyncStorage.getItem(key).catch(() => null);
+        let ids: string[] = [];
         try {
-          await Promise.all([refreshBalance(), refreshEnvelopes(), refreshActivity()]);
-        } finally {
-          inFlight.current = false;
-          lastRefresh.current = Date.now();
+          ids = raw ? (JSON.parse(raw) as string[]) : [];
+        } catch {
+          ids = [];
         }
-      })();
-    }, intervalMs);
-  }, [envelopes, status]);
+        notified.current = new Set(ids);
+        isFirstSync.current = raw === null;
+        notifiedFor.current = key;
+      }
+
+      const fresh = list.filter(
+        (envelope) => envelope.status === 'completed' && !notified.current.has(envelope.id),
+      );
+      const firstSync = isFirstSync.current;
+      isFirstSync.current = false;
+      if (fresh.length === 0 && !firstSync) return;
+
+      for (const envelope of fresh) notified.current.add(envelope.id);
+      await AsyncStorage.setItem(
+        key,
+        JSON.stringify(Array.from(notified.current).slice(-NOTIFIED_LIMIT)),
+      ).catch(() => undefined);
+
+      if (firstSync || !notificationsOn.current) return;
+      for (const envelope of fresh) void notifyEnvelopeCompleted(envelope);
+    },
+    [profile?.id],
+  );
+
+  useEffect(() => {
+    hasActive.current = envelopes.some((e) => ACTIVE_STATUSES.includes(e.status));
+  }, [envelopes]);
 
   const refreshBalance = useCallback(async () => {
     setLoadingBalance(true);
@@ -108,21 +148,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setLoadingEnvelopes(true);
     try {
       const server = await api.getEnvelopes(token);
-      setEnvelopes((prev) => {
-        for (const next of server) {
-          const before = prev.find((p) => sameEnvelope(p, next));
-          if (next.status === 'completed' && (!before || before.status !== 'completed')) {
-            void notifyEnvelopeCompleted(next);
-          }
-        }
-        return mergeEnvelopes(server, prev);
-      });
+      setEnvelopes((prev) => mergeEnvelopes(server, prev));
+      void announceCompleted(server);
     } catch {
       // Keep previously loaded list.
     } finally {
       setLoadingEnvelopes(false);
     }
-  }, [token]);
+  }, [announceCompleted, token]);
 
   const refreshActivity = useCallback(async () => {
     setLoadingActivity(true);
@@ -142,9 +175,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       await Promise.all([refreshBalance(), refreshEnvelopes(), refreshActivity()]);
     } finally {
       inFlight.current = false;
-      lastRefresh.current = Date.now();
     }
   }, [refreshBalance, refreshEnvelopes, refreshActivity]);
+
+  // The polling loop reads this ref, so a new token does not restart it.
+  const refreshAllRef = useRef(refreshAll);
+  refreshAllRef.current = refreshAll;
 
   const addEnvelope = useCallback((envelope: Envelope) => {
     setEnvelopes((prev) =>
@@ -166,43 +202,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     ]);
   }, []);
 
+  /**
+   * One polling loop per signed-in session. It used to depend on `envelopes`,
+   * so every refresh (which replaces that array) restarted it and fired another
+   * refresh straight away -- a loop that hit the API non-stop. Now it polls
+   * every 10 s while an envelope is still in flight and every 30 s otherwise,
+   * only while the app is in the foreground, and once more on returning to it.
+   */
   useEffect(() => {
     // Wait for the session to resolve so the first load is not unauthenticated.
-    if (status !== 'signed-in') {
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
-        refreshInterval.current = null;
-      }
-      return;
-    }
-    void refreshAll();
+    if (status !== 'signed-in') return;
 
-    const intervalMs = envelopes.some((e) => ACTIVE_STATUSES.includes(e.status)) ? 10000 : 30000;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
-    if (refreshInterval.current) {
-      clearInterval(refreshInterval.current);
-    }
+    const schedule = () => {
+      timer = setTimeout(async () => {
+        if (cancelled) return;
+        if (AppState.currentState === 'active') {
+          await refreshAllRef.current();
+        }
+        if (!cancelled) schedule();
+      }, hasActive.current ? FAST_POLL_MS : SLOW_POLL_MS);
+    };
 
-    refreshInterval.current = setInterval(() => {
-      void refreshAll();
-    }, intervalMs);
+    void refreshAllRef.current();
+    schedule();
+    if (notificationsOn.current) void requestNotificationPermission();
 
     const sub = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-    void refreshAll();
-    void requestNotificationPermission();
+        void refreshAllRef.current();
       }
       appState.current = nextAppState;
     });
 
     return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
       sub.remove();
-      if (refreshInterval.current) {
-        clearInterval(refreshInterval.current);
-        refreshInterval.current = null;
-      }
     };
-  }, [refreshAll, status, envelopes]);
+  }, [status]);
 
   const value = useMemo<DataState>(
     () => ({
