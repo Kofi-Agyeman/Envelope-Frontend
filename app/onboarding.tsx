@@ -30,7 +30,7 @@ const SLIDES: Slide[] = [
     state: 'idle',
     sealed: false,
     points: [
-      { icon: 'shield', text: 'Works with your MTN MoMo wallet' },
+      { icon: 'shield', text: 'Works with your mobile money wallet' },
       { icon: 'lock', text: 'Your recipient’s number stays private' },
     ],
   },
@@ -48,7 +48,7 @@ const SLIDES: Slide[] = [
   {
     step: 'They claim it',
     title: 'Money moves only when it is claimed',
-    body: 'The recipient enters their MoMo number, and only then is the payment sent.',
+    body: 'The recipient enters their phone number, and only then is the payment sent.',
     state: 'completed',
     sealed: true,
     points: [

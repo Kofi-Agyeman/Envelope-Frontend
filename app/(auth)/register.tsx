@@ -112,7 +112,7 @@ export default function RegisterScreen() {
           Create your account
         </Text>
         <Text style={styles.subtitle}>
-          Your MTN MoMo number becomes your Envelope wallet. It takes under a minute.
+          Your phone number becomes your Envelope wallet. It takes under a minute.
         </Text>
       </Animated.View>
 
@@ -127,7 +127,7 @@ export default function RegisterScreen() {
           testID="register-name"
         />
         <Field
-          label="MTN MoMo number"
+          label="Phone number"
           value={phone}
           onChangeText={setPhone}
           placeholder="024 563 4567"

@@ -13,7 +13,9 @@ import {
   lightColors,
   makeShadows,
   makeStatusColors,
+  makeTelcoPalette,
   type Palette,
+  type TelcoSupport,
   type ThemeMode,
 } from '@/constants/theme';
 
@@ -25,10 +27,12 @@ type ThemeState = {
   mode: ThemeMode;
   scheme: ResolvedScheme;
   colors: Palette;
+  telco: TelcoSupport | null;
   shadows: ReturnType<typeof makeShadows>;
   statusColors: ReturnType<typeof makeStatusColors>;
   setMode: (mode: ThemeMode) => void;
   cycleMode: () => void;
+  setTelco: (telco: TelcoSupport | null) => void;
 };
 
 const ThemeContext = createContext<ThemeState | null>(null);
@@ -39,6 +43,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
   const [mode, setModeState] = useState<ThemeMode>('dark');
   const [ready, setReady] = useState(false);
+  const [telco, setTelcoState] = useState<TelcoSupport | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -79,19 +84,24 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       effectiveMode === 'system'
         ? (systemScheme === 'light' ? 'light' : 'dark')
         : effectiveMode;
-    const colors =
+    let colors: Palette =
       effectiveScheme === 'dark' ? darkColors : lightColors;
+    if (telco) {
+      colors = makeTelcoPalette(colors, telco);
+    }
 
     return {
       mode: effectiveMode,
       scheme: effectiveScheme,
       colors,
+      telco,
       shadows: makeShadows(effectiveScheme),
       statusColors: makeStatusColors(colors),
       setMode,
       cycleMode,
+      setTelco: setTelcoState,
     };
-  }, [mode, ready, systemScheme, setMode, cycleMode]);
+  }, [mode, ready, systemScheme, telco, setMode, cycleMode]);
 
   return React.createElement(ThemeContext.Provider, { value }, children);
 }

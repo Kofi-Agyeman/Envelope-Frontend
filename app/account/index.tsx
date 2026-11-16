@@ -19,9 +19,11 @@ import {
   GroupLabel,
   ListGroup,
   ListRow,
+  ScreenHeader,
   screenContent,
 } from '@/components/ui';
-import type { Palette } from '@/constants/theme';
+import type { Palette, TelcoSupport } from '@/constants/theme';
+import { TELCO_COLORS } from '@/constants/theme';
 import { useThemedStyles, useTheme } from '@/store/theme';
 import { radius, spacing } from '@/constants/layout';
 import { fontFamily, tabularNums, type } from '@/constants/typography';
@@ -54,7 +56,7 @@ export default function AccountScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, selectedTelco } = useAuth();
 
   const [state, setState] = useState<LoadState>({
     account: null,
@@ -144,8 +146,30 @@ export default function AccountScreen() {
     </View>
   );
 
-  const { account } = state;
-  const syncedIso = state.syncedAt ? new Date(state.syncedAt).toISOString() : null;
+  const getTelcoLabel = (telco: TelcoSupport | null | undefined): string => {
+  if (!telco) return 'Mobile Money';
+  switch (telco) {
+    case 'MTN': return 'MTN';
+    case 'Telecel': return 'Telecel';
+    case 'AT': return 'AirtelTigo';
+  }
+};
+
+const getTelcoColor = (telco: TelcoSupport | null | undefined): string => {
+  if (!telco) return colors.primary;
+  return TELCO_COLORS[telco].primary;
+};
+
+const getTelcoOnColor = (telco: TelcoSupport | null | undefined): string => {
+  if (!telco) return colors.onPrimary;
+  return TELCO_COLORS[telco].onPrimary;
+};
+
+const telcoLabel = getTelcoLabel(selectedTelco);
+const telcoColor = getTelcoColor(selectedTelco);
+const telcoOnColor = getTelcoOnColor(selectedTelco);
+const { account } = state;
+const syncedIso = state.syncedAt ? new Date(state.syncedAt).toISOString() : null;
   const syncedLabel = syncedIso
     ? `${formatDateLong(syncedIso)} · ${formatTime(syncedIso)}`
     : '—';
@@ -205,8 +229,10 @@ export default function AccountScreen() {
 
                 <View style={styles.pillRow}>
                   <View style={styles.walletPill}>
-                    <View style={styles.mtnMark}>
-                      <Text style={styles.mtnMarkText}>MTN</Text>
+                    <View style={[styles.mtnMark, { backgroundColor: telcoColor }]}>
+                      <Text style={[styles.mtnMarkText, { color: telcoOnColor }]}>
+                        {telcoLabel}
+                      </Text>
                     </View>
                     <Text style={styles.walletText}>{maskPhone(account.phone)}</Text>
                   </View>
@@ -242,7 +268,7 @@ export default function AccountScreen() {
               <GroupLabel>Personal details</GroupLabel>
               <ListGroup>
                 <ListRow icon="profile" title="Full name" value={account.fullName || '—'} />
-                <ListRow icon="wallet" title="MTN MoMo number" value={account.phone || '—'} />
+                <ListRow icon="wallet" title={`${telcoLabel} number`} value={account.phone || '—'} />
                 <ListRow
                   icon="document"
                   title="Email"

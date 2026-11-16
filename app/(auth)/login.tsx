@@ -143,7 +143,7 @@ export default function LoginScreen() {
         <View style={styles.trust}>
           <Icon name="shield" size={14} color={colors.textMuted} />
           <Text style={styles.trustText}>
-            Payments are settled through MTN Mobile Money.
+            Payments are settled through mobile money.
           </Text>
         </View>
       </View>

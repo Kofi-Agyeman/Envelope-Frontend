@@ -80,13 +80,21 @@ function AuthNavigator() {
 
 function RootNavigator() {
   const { status, preferences } = useAuth();
-  const { colors, scheme } = useTheme();
+  const { colors, scheme, setTelco } = useTheme();
+  const { selectedTelco } = useAuth();
   const segments = useSegments();
   const isDark = scheme === 'dark';
 
   React.useEffect(() => {
     setHapticsEnabled(preferences.hapticFeedback);
   }, [preferences.hapticFeedback]);
+
+  // Sync selected telco to theme provider
+  React.useEffect(() => {
+    if (selectedTelco) {
+      setTelco(selectedTelco);
+    }
+  }, [selectedTelco, setTelco]);
 
   const navigationTheme = React.useMemo(() => {
     const base = isDark ? DarkTheme : DefaultTheme;
