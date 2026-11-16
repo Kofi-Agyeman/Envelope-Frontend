@@ -7,6 +7,8 @@ import {
 } from './tokenManager';
 import type {
   AuthTokens,
+  AddNumPayload,
+  AddNumResponse,
   ForgotPasswordPayload,
   ForgotPasswordResponse,
   LoginPayload,
@@ -16,6 +18,7 @@ import type {
   RegisterPayload,
   RegisterRequestBody,
   RegisterResponse,
+  TelcoSupport,
   TokenPairResponse,
 } from '@/types';
 
@@ -63,7 +66,7 @@ function profileFrom(
 }
 
 /** Maps the backend's snake_case user record onto the app's Profile model. */
-function profileFromWire(me: MeResponse): Profile {
+export function profileFromWire(me: MeResponse): Profile {
   return {
     id: me.id,
     fullName: me.full_name,
@@ -71,6 +74,10 @@ function profileFromWire(me: MeResponse): Profile {
     phone: me.phone_number,
     initials: initialsFrom(me.full_name),
     isVerified: me.is_verified === true,
+    mtnPhone: me.mtn_phone_number ?? null,
+    telecelPhone: me.telecel_phone_number ?? null,
+    atPhone: me.at_phone_number ?? null,
+    selectedTelco: me.selected_telco ?? undefined,
   };
 }
 
@@ -184,6 +191,17 @@ export const authService = {
       method: 'POST',
       body: { email: payload.email.trim() },
       // No session exists yet, so a 401 must not trigger a token refresh.
+      retryOnUnauthorized: false,
+    });
+  },
+
+  async addNumber(payload: AddNumPayload): Promise<AddNumResponse> {
+    return request<AddNumResponse>('/auth/add_num', {
+      method: 'POST',
+      body: {
+        phone_number: payload.phone_number.trim(),
+        telco_support: payload.telco_support,
+      },
       retryOnUnauthorized: false,
     });
   },

@@ -34,6 +34,52 @@ export type Balance = {
   maskedPhone: string;
 };
 
+export type TelcoSupport = 'MTN' | 'Telecel' | 'AT';
+
+export type TelcoTheme = {
+  primary: string;
+  onPrimary: string;
+  primaryDark: string;
+  primaryMuted: string;
+  primaryFaint: string;
+  accent: string;
+  name: string;
+  shortName: string;
+};
+
+export const TELCO_THEMES: Record<TelcoSupport, TelcoTheme> = {
+  MTN: {
+    primary: '#FFCB05',
+    onPrimary: '#14161B',
+    primaryDark: '#E5B500',
+    primaryMuted: 'rgba(255, 203, 5, 0.18)',
+    primaryFaint: 'rgba(255, 203, 5, 0.09)',
+    accent: '#8A6A00',
+    name: 'MTN Mobile Money',
+    shortName: 'MTN',
+  },
+  Telecel: {
+    primary: '#E60012',
+    onPrimary: '#FFFFFF',
+    primaryDark: '#CC0011',
+    primaryMuted: 'rgba(230, 0, 18, 0.18)',
+    primaryFaint: 'rgba(230, 0, 18, 0.09)',
+    accent: '#E60012',
+    name: 'Telecel Cash',
+    shortName: 'Telecel',
+  },
+  AT: {
+    primary: '#00A651',
+    onPrimary: '#FFFFFF',
+    primaryDark: '#009448',
+    primaryMuted: 'rgba(0, 166, 81, 0.18)',
+    primaryFaint: 'rgba(0, 166, 81, 0.09)',
+    accent: '#00A651',
+    name: 'AirtelTigo Money',
+    shortName: 'AT',
+  },
+} as const;
+
 export type Profile = {
   id: string;
   fullName: string;
@@ -42,6 +88,12 @@ export type Profile = {
   initials: string;
   /** `is_verified` from the backend; false until the backend says otherwise. */
   isVerified: boolean;
+  /** Phone numbers per telco (new schema) */
+  mtnPhone?: string | null;
+  telecelPhone?: string | null;
+  atPhone?: string | null;
+  /** Currently selected telco for theming and operations */
+  selectedTelco?: TelcoSupport;
 };
 
 /**
@@ -54,12 +106,18 @@ export type Profile = {
 export type Account = {
   id: string;
   fullName: string;
-  /** MTN MoMo number exactly as the backend stores it. */
+  /** Primary phone number (backward compat) */
   phone: string;
   email: string | null;
   isVerified: boolean;
   /** Derived from `fullName` for display only; not part of the response. */
   initials: string;
+  /** Phone numbers per telco (new schema) */
+  mtnPhone?: string | null;
+  telecelPhone?: string | null;
+  atPhone?: string | null;
+  /** Currently selected telco for theming and operations */
+  selectedTelco?: TelcoSupport | null;
 };
 
 export type ActivityEventType =
@@ -129,6 +187,10 @@ export type MeResponse = {
   phone_number: string;
   email?: string | null;
   is_verified?: boolean;
+  mtn_phone_number?: string | null;
+  telecel_phone_number?: string | null;
+  at_phone_number?: string | null;
+  selected_telco?: TelcoSupport | null;
 };
 
 /**
@@ -197,6 +259,23 @@ export type ForgotPasswordRequestBody = {
 
 export type ForgotPasswordResponse = {
   message: string;
+};
+
+/** `POST /api/auth/add_num` */
+export type AddNumPayload = {
+  phone_number: string;
+  telco_support: TelcoSupport;
+};
+
+export type AddNumRequestBody = {
+  phone_number: string;
+  telco_support: TelcoSupport;
+};
+
+export type AddNumResponse = {
+  message: string;
+  phone_number: string;
+  telco_support: TelcoSupport;
 };
 
 export type CreateEnvelopePayload = {

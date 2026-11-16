@@ -1,5 +1,41 @@
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+export type TelcoSupport = 'MTN' | 'Telecel' | 'AT';
+
+export const TELCO_COLORS: Record<TelcoSupport, {
+  primary: string;
+  onPrimary: string;
+  primaryDark: string;
+  primaryMuted: string;
+  primaryFaint: string;
+  accent: string;
+}> = {
+  MTN: {
+    primary: '#FFCB05',
+    onPrimary: '#14161B',
+    primaryDark: '#E5B500',
+    primaryMuted: 'rgba(255, 203, 5, 0.18)',
+    primaryFaint: 'rgba(255, 203, 5, 0.09)',
+    accent: '#8A6A00',
+  },
+  Telecel: {
+    primary: '#E60012',
+    onPrimary: '#FFFFFF',
+    primaryDark: '#CC0011',
+    primaryMuted: 'rgba(230, 0, 18, 0.18)',
+    primaryFaint: 'rgba(230, 0, 18, 0.09)',
+    accent: '#E60012',
+  },
+  AT: {
+    primary: '#00A651',
+    onPrimary: '#FFFFFF',
+    primaryDark: '#009448',
+    primaryMuted: 'rgba(0, 166, 81, 0.18)',
+    primaryFaint: 'rgba(0, 166, 81, 0.09)',
+    accent: '#00A651',
+  },
+};
+
 /**
  * Two palettes built on one rule: neutrals carry the interface, MTN yellow is
  * reserved for the primary action on a screen and for brand marks.
@@ -120,3 +156,20 @@ export const makeShadows = (scheme: 'light' | 'dark') => ({
     elevation: scheme === 'dark' ? 0 : 1,
   },
 });
+
+/** Creates a telco-specific palette by overriding brand colors. */
+export const makeTelcoPalette = (
+  base: Palette,
+  telco: TelcoSupport,
+): Palette => {
+  const tc = TELCO_COLORS[telco];
+  return {
+    ...base,
+    primary: tc.primary,
+    onPrimary: tc.onPrimary,
+    primaryDark: tc.primaryDark,
+    primaryMuted: tc.primaryMuted,
+    primaryFaint: tc.primaryFaint,
+    accent: tc.accent,
+  };
+};

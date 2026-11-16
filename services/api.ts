@@ -12,6 +12,7 @@ import type {
   Profile,
   SendMoneyRequestBody,
   TransactionResponse,
+  TelcoSupport,
 } from '@/types';
 
 /**
@@ -42,6 +43,10 @@ export function accountFromWire(me: MeResponse): Account {
     // the app vouch for an account the backend has not confirmed.
     isVerified: me.is_verified === true,
     initials: initialsFromName(me.full_name),
+    mtnPhone: me.mtn_phone_number ?? null,
+    telecelPhone: me.telecel_phone_number ?? null,
+    atPhone: me.at_phone_number ?? null,
+    selectedTelco: me.selected_telco ?? null,
   };
 }
 
@@ -62,6 +67,10 @@ export async function getProfile(token?: string | null): Promise<Profile> {
     phone: account.phone,
     initials: account.initials,
     isVerified: account.isVerified,
+    mtnPhone: account.mtnPhone ?? null,
+    telecelPhone: account.telecelPhone ?? null,
+    atPhone: account.atPhone ?? null,
+    selectedTelco: account.selectedTelco ?? undefined,
   };
 }
 

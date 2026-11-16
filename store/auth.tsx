@@ -9,12 +9,15 @@ import React, {
   useState,
 } from 'react';
 import { authService, type AuthSession } from '@/services/auth';
+import { request } from '@/services/http';
 import {
   onSessionExpired,
   onTokensChanged,
+  getAccessToken,
 } from '@/services/tokenManager';
-import type { ForgotPasswordPayload, LoginPayload, Profile, RegisterPayload } from '@/types';
+import type { ForgotPasswordPayload, LoginPayload, Profile, RegisterPayload, TelcoSupport, AddNumPayload, MeResponse } from '@/types';
 import type { UserPreferences } from '@/types';
+import { profileFromWire } from '@/services/auth';
 
 const PREFS_KEY = 'envelope.preferences';
 
@@ -31,9 +34,13 @@ type AuthState = {
   profile: Profile | null;
   token: string | null;
   preferences: UserPreferences;
+  /** Currently selected telco for theming and operations */
+  selectedTelco: TelcoSupport | null;
   signIn: (payload: LoginPayload) => Promise<void>;
   signUp: (payload: RegisterPayload) => Promise<void>;
   forgotPassword: (payload: ForgotPasswordPayload) => Promise<void>;
+  addNumber: (payload: AddNumPayload) => Promise<void>;
+  setSelectedTelco: (telco: TelcoSupport) => void;
   signOut: () => Promise<void>;
   completeOnboarding: () => void;
   setPreference: <K extends keyof UserPreferences>(
@@ -50,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [preferences, setPreferences] =
     useState<UserPreferences>(defaultPreferences);
+  const [selectedTelco, setSelectedTelcoState] = useState<TelcoSupport | null>(null);
 
   // The boot restore below is async. If the user signs in or signs up while it
   // is still awaiting storage, its result is stale and must not overwrite the
@@ -77,6 +85,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(session.profile);
           setToken(session.tokens.accessToken);
           setStatus('signed-in');
+          if (session.profile.selectedTelco) {
+            setSelectedTelcoState(session.profile.selectedTelco);
+          }
         } else {
           setStatus('signed-out');
         }
@@ -135,6 +146,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applySession],
   );
 
+  const addNumber = useCallback(
+    async (payload: AddNumPayload) => {
+      await authService.addNumber(payload);
+      // Refresh profile to get updated phone numbers
+      const accessToken = await getAccessToken();
+      if (accessToken) {
+        try {
+          const me = await request<MeResponse>('/users/me', { token: accessToken });
+          const updatedProfile = profileFromWire(me);
+          setProfile(updatedProfile);
+          await authService.updateProfile(updatedProfile);
+          if (updatedProfile.selectedTelco) {
+            setSelectedTelcoState(updatedProfile.selectedTelco);
+          }
+        } catch {
+          // Ignore refresh errors
+        }
+      }
+    },
+    [],
+  );
+
+  const setSelectedTelco = useCallback((telco: TelcoSupport) => {
+    setSelectedTelcoState(telco);
+    // Also update the stored profile
+    if (profile) {
+      const updated = { ...profile, selectedTelco: telco };
+      setProfile(updated);
+      authService.updateProfile(updated).catch(() => {});
+    }
+  }, [profile]);
+
   const forgotPassword = useCallback(
     async (payload: ForgotPasswordPayload) => {
       await authService.forgotPassword(payload);
@@ -170,9 +213,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       token,
       preferences,
+      selectedTelco,
       signIn,
       signUp,
       forgotPassword,
+      addNumber,
+      setSelectedTelco,
       signOut,
       completeOnboarding,
       setPreference,
@@ -182,9 +228,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile,
       token,
       preferences,
+      selectedTelco,
       signIn,
       signUp,
       forgotPassword,
+      addNumber,
+      setSelectedTelco,
       signOut,
       completeOnboarding,
       setPreference,
