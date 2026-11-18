@@ -33,7 +33,7 @@ export default function CreateEnvelopeScreen() {
   const styles = useThemedStyles(createStyles);
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { token } = useAuth();
+  const { token, profile, selectedTelco } = useAuth();
   const { addEnvelope } = useData();
   const params = useLocalSearchParams<{ amount?: string }>();
 
@@ -83,13 +83,27 @@ export default function CreateEnvelopeScreen() {
       return;
     }
 
+    const linkedPhone =
+      selectedTelco === 'MTN'
+        ? profile?.mtnPhone
+        : selectedTelco === 'Telecel'
+          ? profile?.telecelPhone
+          : selectedTelco === 'AT'
+            ? profile?.atPhone
+            : null;
+    if (!selectedTelco || !linkedPhone) {
+      setError('Select a linked Mobile Money number in your profile first.');
+      setPhase('error');
+      return;
+    }
+
     // Claim the slot *before* awaiting, so a concurrent trigger (a token
     // refresh remounting this effect, or a fast double tap) cannot slip past.
     sending.current = true;
     sent.current = true;
 
     try {
-      const envelope = await api.createEnvelope({ amount }, token);
+      const envelope = await api.createEnvelope({ amount, telco: selectedTelco }, token);
       if (!mounted.current) return;
       created.current = envelope;
       addEnvelope(envelope);
@@ -119,7 +133,7 @@ export default function CreateEnvelopeScreen() {
       );
       setPhase('error');
     }
-  }, [addEnvelope, amount, checkScale, token]);
+  }, [addEnvelope, amount, checkScale, profile, selectedTelco, token]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

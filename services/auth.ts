@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { request } from './http';
+import { accountFromWire } from './api';
 import {
   clearTokens,
   loadTokens,
@@ -65,19 +66,21 @@ function profileFrom(
   };
 }
 
-/** Maps the backend's snake_case user record onto the app's Profile model. */
+/** Maps the backend user record onto the app's Profile model. */
 export function profileFromWire(me: MeResponse): Profile {
+  const account = accountFromWire(me);
+
   return {
-    id: me.id,
-    fullName: me.full_name,
-    email: me.email ?? '',
-    phone: me.phone_number,
-    initials: initialsFrom(me.full_name),
-    isVerified: me.is_verified === true,
-    mtnPhone: me.mtn_phone_number ?? null,
-    telecelPhone: me.telecel_phone_number ?? null,
-    atPhone: me.at_phone_number ?? null,
-    selectedTelco: me.selected_telco ?? undefined,
+    id: account.id,
+    fullName: account.fullName,
+    email: account.email ?? '',
+    phone: account.phone,
+    initials: account.initials,
+    isVerified: account.isVerified,
+    mtnPhone: account.mtnPhone,
+    telecelPhone: account.telecelPhone,
+    atPhone: account.atPhone,
+    selectedTelco: account.selectedTelco ?? undefined,
   };
 }
 

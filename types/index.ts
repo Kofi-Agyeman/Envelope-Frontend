@@ -180,17 +180,20 @@ export type RegisterResponse = {
   user_id: string;
 };
 
-/** `GET /api/users/me` */
+/** `GET /api/users/me`; the deployed API uses telco names as phone-field keys. */
 export type MeResponse = {
   id: string;
   full_name: string;
-  phone_number: string;
+  phone_number?: string | null;
   email?: string | null;
   is_verified?: boolean;
   mtn_phone_number?: string | null;
   telecel_phone_number?: string | null;
   at_phone_number?: string | null;
   selected_telco?: TelcoSupport | null;
+  MTN?: string | null;
+  Telecel?: string | null;
+  AT?: string | null;
 };
 
 /**
@@ -202,6 +205,7 @@ export type MeResponse = {
  */
 export type SendMoneyRequestBody = {
   amount: string;
+  telco: TelcoSupport;
 };
 
 /** `POST /api/payments/send` -> TransactionResponse. */
@@ -280,6 +284,7 @@ export type AddNumResponse = {
 
 export type CreateEnvelopePayload = {
   amount: number;
+  telco: TelcoSupport;
   currency?: string;
 };
 

@@ -31,22 +31,40 @@ import type {
  * by `request`, and a refresh that also fails ends the session, so an expired
  * token surfaces as a sign-out rather than a stale screen.
  *
- * Exported because it is the one place the wire record is interpreted.
+ * Exported because it is the one place the backend's user record is interpreted.
  */
 export function accountFromWire(me: MeResponse): Account {
+  const mtnPhone = me.mtn_phone_number ?? me.MTN ?? null;
+  const telecelPhone = me.telecel_phone_number ?? me.Telecel ?? null;
+  const atPhone = me.at_phone_number ?? me.AT ?? null;
+  let selectedTelco = me.selected_telco ?? null;
+  if (!selectedTelco) {
+    if (me.phone_number && me.phone_number === mtnPhone) selectedTelco = 'MTN';
+    else if (me.phone_number && me.phone_number === telecelPhone) selectedTelco = 'Telecel';
+    else if (me.phone_number && me.phone_number === atPhone) selectedTelco = 'AT';
+    else if (mtnPhone) selectedTelco = 'MTN';
+    else if (telecelPhone) selectedTelco = 'Telecel';
+    else if (atPhone) selectedTelco = 'AT';
+  }
+
   return {
     id: me.id,
     fullName: me.full_name,
-    phone: me.phone_number,
+    phone:
+      me.phone_number ??
+      (selectedTelco === 'MTN' ? mtnPhone : null) ??
+      (selectedTelco === 'Telecel' ? telecelPhone : null) ??
+      (selectedTelco === 'AT' ? atPhone : null) ??
+      '',
     email: me.email ?? null,
     // Treated as absent rather than verified: an unknown flag must never make
     // the app vouch for an account the backend has not confirmed.
     isVerified: me.is_verified === true,
     initials: initialsFromName(me.full_name),
-    mtnPhone: me.mtn_phone_number ?? null,
-    telecelPhone: me.telecel_phone_number ?? null,
-    atPhone: me.at_phone_number ?? null,
-    selectedTelco: me.selected_telco ?? null,
+    mtnPhone,
+    telecelPhone,
+    atPhone,
+    selectedTelco,
   };
 }
 
@@ -236,6 +254,7 @@ export async function createEnvelope(
   // Send the amount as a string to keep Decimal precision exact.
   const body: SendMoneyRequestBody = {
     amount: payload.amount.toFixed(2),
+    telco: payload.telco,
   };
 
   const response = await request<TransactionResponse>('/payments/send', {
