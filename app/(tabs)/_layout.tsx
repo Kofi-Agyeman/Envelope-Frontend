@@ -17,7 +17,7 @@ const TAB_ICONS: Record<string, IconName> = {
   profile: 'profile',
 };
 
-function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+function TabBar({ state, descriptors, emitter, navigateToTab }: BottomTabBarProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const insets = useSafeAreaInsets();
@@ -39,14 +39,14 @@ function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             <Pressable
               key={route.key}
               onPress={() => {
-                const event = navigation.emit({
+                const event = emitter.emit({
                   type: 'tabPress',
                   target: route.key,
                   canPreventDefault: true,
                 });
                 if (!focused && !event.defaultPrevented) {
                   haptics.light();
-                  navigation.navigate(route.name);
+                  navigateToTab(route.key);
                 }
               }}
               style={styles.item}
